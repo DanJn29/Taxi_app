@@ -75,16 +75,19 @@ fun ClientHomeScreen(
             )
         )
         
-        Column(
-            modifier = Modifier.padding(16.dp)
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             // Search Card
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = TaxiWhite),
-                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-            ) {
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = TaxiWhite),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                ) {
                 Column(
                     modifier = Modifier.padding(20.dp)
                 ) {
@@ -138,30 +141,29 @@ fun ClientHomeScreen(
                     }
                 }
             }
-            
-            Spacer(modifier = Modifier.height(24.dp))
+            }
             
             // Available Trips
-            Text(
-                text = "Հասանելի երթուղիներ",
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold,
-                color = TaxiBlack,
-                modifier = Modifier.padding(bottom = 16.dp)
-            )
+            item {
+                Text(
+                    text = "Հասանելի երթուղիներ",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = TaxiBlack,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+            }
             
             if (availableTrips.isEmpty()) {
-                EmptyState(message = "Երթուղիներ չկան")
+                item {
+                    EmptyState(message = "Երթուղիներ չկան")
+                }
             } else {
-                LazyColumn(
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    items(availableTrips) { trip ->
-                        TripCard(
-                            trip = trip,
-                            onTripSelected = { onTripSelected(trip) }
-                        )
-                    }
+                items(availableTrips) { trip ->
+                    TripCard(
+                        trip = trip,
+                        onTripSelected = { onTripSelected(trip) }
+                    )
                 }
             }
         }

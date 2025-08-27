@@ -1,6 +1,7 @@
 package com.example.taxi_app.ui.screens
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -8,6 +9,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.taxi_app.data.Company
@@ -19,12 +21,14 @@ import com.example.taxi_app.ui.theme.TaxiBlack
 @Composable
 fun DashboardScreen(
     company: Company,
+    navigationScrollState: LazyListState,
     onNavigate: (Screen) -> Unit,
     onLogout: () -> Unit
 ) {
     TaxiLayout(
         company = company,
         currentScreen = Screen.Dashboard,
+        navigationScrollState = navigationScrollState,
         onNavigate = onNavigate,
         onLogout = onLogout
     ) {
@@ -34,7 +38,7 @@ fun DashboardScreen(
             val isLargeScreen = screenWidth > 500.dp
             
             val titleSize = when {
-                isSmallScreen -> 24.sp
+                isSmallScreen -> 20.sp
                 isLargeScreen -> 32.sp
                 else -> 28.sp
             }
@@ -53,7 +57,11 @@ fun DashboardScreen(
                     fontSize = titleSize,
                     fontWeight = FontWeight.Bold,
                     color = TaxiBlack,
-                    modifier = Modifier.padding(bottom = if (isSmallScreen) 12.dp else 16.dp)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = if (isSmallScreen) 12.dp else 16.dp),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
                 )
                 
                 LazyVerticalGrid(

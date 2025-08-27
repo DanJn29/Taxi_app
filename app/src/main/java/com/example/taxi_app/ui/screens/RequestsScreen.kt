@@ -2,6 +2,7 @@ package com.example.taxi_app.ui.screens
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -23,6 +24,7 @@ import com.example.taxi_app.ui.theme.*
 fun RequestsScreen(
     company: Company,
     requests: List<Request>,
+    navigationScrollState: LazyListState,
     onNavigate: (Screen) -> Unit,
     onAcceptRequest: (String) -> Unit,
     onDeclineRequest: (String) -> Unit,
@@ -31,6 +33,7 @@ fun RequestsScreen(
     TaxiLayout(
         company = company,
         currentScreen = Screen.Requests,
+        navigationScrollState = navigationScrollState,
         onNavigate = onNavigate,
         onLogout = onLogout
     ) {

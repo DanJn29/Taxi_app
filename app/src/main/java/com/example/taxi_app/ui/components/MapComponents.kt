@@ -1,7 +1,12 @@
 package com.example.taxi_app.ui.components
 
+import android.Manifest
 import android.content.Context
+import android.content.pm.PackageManager
 import android.location.Geocoder
+import android.location.LocationManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -17,17 +22,60 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.core.content.ContextCompat
 import org.osmdroid.api.IMapController
 import org.osmdroid.config.Configuration
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
+import org.osmdroid.library.R as OSMDroidR
 import com.example.taxi_app.ui.theme.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
 import java.util.Locale
+
+// Helper function to get user's current location
+suspend fun getCurrentLocation(context: Context): GeoPoint? {
+    return withContext(Dispatchers.IO) {
+        try {
+            val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
+            
+            // Check if location permission is granted
+            val hasPermission = ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.ACCESS_FINE_LOCATION
+            ) == PackageManager.PERMISSION_GRANTED || ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.ACCESS_COARSE_LOCATION
+            ) == PackageManager.PERMISSION_GRANTED
+            
+            if (!hasPermission) {
+                return@withContext null
+            }
+            
+            // Get last known location from GPS or Network provider
+            val gpsLocation = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER)
+            val networkLocation = locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
+            
+            val bestLocation = when {
+                gpsLocation != null && networkLocation != null -> {
+                    if (gpsLocation.time > networkLocation.time) gpsLocation else networkLocation
+                }
+                gpsLocation != null -> gpsLocation
+                networkLocation != null -> networkLocation
+                else -> null
+            }
+            
+            bestLocation?.let { location ->
+                GeoPoint(location.latitude, location.longitude)
+            }
+        } catch (e: Exception) {
+            null
+        }
+    }
+}
 
 @Composable
 fun OSMMapView(
@@ -35,14 +83,58 @@ fun OSMMapView(
     initialLocation: GeoPoint = GeoPoint(40.1872, 44.5152), // Yerevan, Armenia
     markers: List<Pair<GeoPoint, String>> = emptyList(),
     onMapClick: ((GeoPoint) -> Unit)? = null,
-    showLocationButton: Boolean = true
+    showLocationButton: Boolean = true,
+    centerOnUserLocation: Boolean = true
 ) {
     val context = LocalContext.current
     var mapView by remember { mutableStateOf<MapView?>(null) }
+    var userLocation by remember { mutableStateOf<GeoPoint?>(null) }
+    var hasLocationPermission by remember { mutableStateOf(false) }
+    val coroutineScope = rememberCoroutineScope()
     
-    // Initialize OSMDroid configuration
+    // Permission launcher
+    val locationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        hasLocationPermission = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
+                permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+        
+        if (hasLocationPermission) {
+            coroutineScope.launch {
+                userLocation = getCurrentLocation(context)
+                userLocation?.let { location ->
+                    if (centerOnUserLocation) {
+                        mapView?.controller?.setZoom(18.0)
+                        mapView?.controller?.animateTo(location)
+                    }
+                }
+            }
+        }
+    }
+    
+    // Check location permission on startup
     LaunchedEffect(Unit) {
         Configuration.getInstance().userAgentValue = context.packageName
+        
+        hasLocationPermission = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED || ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.ACCESS_COARSE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+        
+        if (hasLocationPermission) {
+            userLocation = getCurrentLocation(context)
+        } else if (centerOnUserLocation) {
+            // Request location permission
+            locationPermissionLauncher.launch(
+                arrayOf(
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                )
+            )
+        }
     }
     
     Card(
@@ -58,10 +150,20 @@ fun OSMMapView(
                         setMultiTouchControls(true)
                         
                         val mapController: IMapController = controller
-                        mapController.setZoom(12.0)
-                        mapController.setCenter(initialLocation)
                         
-                        // Add markers
+                        // Use user location if available and centerOnUserLocation is true, otherwise use initialLocation
+                        val centerLocation = if (centerOnUserLocation && userLocation != null) {
+                            userLocation!!
+                        } else {
+                            initialLocation
+                        }
+                        mapController.setCenter(centerLocation)
+                        
+                        // Set higher zoom when centering on user location
+                        val zoomLevel = if (centerOnUserLocation && userLocation != null) 18.0 else 12.0
+                        mapController.setZoom(zoomLevel)
+                        
+                        // Add regular markers
                         markers.forEach { (point, title) ->
                             val marker = Marker(this).apply {
                                 position = point
@@ -69,6 +171,23 @@ fun OSMMapView(
                                 this.title = title
                             }
                             overlays.add(marker)
+                        }
+                        
+                        // Add user location marker if available
+                        userLocation?.let { location ->
+                            val userMarker = Marker(this).apply {
+                                position = location
+                                setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+                                title = "Ձեր գտնվելու վայրը"
+                                // Use OSMDroid's person icon
+                                try {
+                                    icon = context.getDrawable(OSMDroidR.drawable.person)
+                                } catch (e: Exception) {
+                                    // Fallback to system location icon if person icon not available
+                                    icon = context.getDrawable(android.R.drawable.ic_menu_mylocation)
+                                }
+                            }
+                            overlays.add(userMarker)
                         }
                         
                         // Handle map clicks
@@ -90,6 +209,8 @@ fun OSMMapView(
             ) { view ->
                 // Update markers when they change
                 view.overlays.clear()
+                
+                // Add regular markers
                 markers.forEach { (point, title) ->
                     val marker = Marker(view).apply {
                         position = point
@@ -98,6 +219,22 @@ fun OSMMapView(
                     }
                     view.overlays.add(marker)
                 }
+                
+                // Add user location marker if available
+                userLocation?.let { location ->
+                    val userMarker = Marker(view).apply {
+                        position = location
+                        setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+                        title = "Ձեր գտնվելու վայրը"
+                        try {
+                            icon = context.getDrawable(OSMDroidR.drawable.person)
+                        } catch (e: Exception) {
+                            icon = context.getDrawable(android.R.drawable.ic_menu_mylocation)
+                        }
+                    }
+                    view.overlays.add(userMarker)
+                }
+                
                 view.invalidate()
             }
             
@@ -105,7 +242,24 @@ fun OSMMapView(
             if (showLocationButton) {
                 FloatingActionButton(
                     onClick = {
-                        mapView?.controller?.animateTo(initialLocation)
+                        if (hasLocationPermission) {
+                            coroutineScope.launch {
+                                val currentLocation = getCurrentLocation(context)
+                                currentLocation?.let { location ->
+                                    userLocation = location
+                                    mapView?.controller?.setZoom(18.0)
+                                    mapView?.controller?.animateTo(location)
+                                }
+                            }
+                        } else {
+                            // Request permission if not granted
+                            locationPermissionLauncher.launch(
+                                arrayOf(
+                                    Manifest.permission.ACCESS_FINE_LOCATION,
+                                    Manifest.permission.ACCESS_COARSE_LOCATION
+                                )
+                            )
+                        }
                     },
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
@@ -130,6 +284,8 @@ fun AddressMapPicker(
     address: String,
     onAddressChange: (String) -> Unit,
     modifier: Modifier = Modifier,
+    currentMapLocation: GeoPoint? = null,
+    onMapLocationUpdate: ((GeoPoint) -> Unit)? = null,
     initialLocation: GeoPoint = GeoPoint(40.1872, 44.5152)
 ) {
     var showMap by remember { mutableStateOf(false) }
@@ -166,7 +322,8 @@ fun AddressMapPicker(
                 showMap = false
             },
             onDismiss = { showMap = false },
-            initialLocation = initialLocation
+            initialLocation = currentMapLocation ?: initialLocation,
+            onMapLocationUpdate = onMapLocationUpdate
         )
     }
 }
@@ -175,13 +332,24 @@ fun AddressMapPicker(
 fun FullScreenMapPicker(
     onLocationSelected: (String) -> Unit,
     onDismiss: () -> Unit,
-    initialLocation: GeoPoint = GeoPoint(40.1872, 44.5152)
+    initialLocation: GeoPoint = GeoPoint(40.1872, 44.5152),
+    onMapLocationUpdate: ((GeoPoint) -> Unit)? = null
 ) {
     val context = LocalContext.current
     var selectedLocation by remember { mutableStateOf<GeoPoint?>(null) }
     var selectedAddress by remember { mutableStateOf("") }
     var isLoadingAddress by remember { mutableStateOf(false) }
+    var userLocation by remember { mutableStateOf<GeoPoint?>(null) }
     val coroutineScope = rememberCoroutineScope()
+    
+    // Get user location when the picker opens
+    LaunchedEffect(Unit) {
+        userLocation = getCurrentLocation(context)
+        // Update the current map location with user location when first obtained
+        userLocation?.let { location ->
+            onMapLocationUpdate?.invoke(location)
+        }
+    }
     
     // Function to get address from coordinates
     suspend fun getAddressFromCoordinates(geoPoint: GeoPoint): String {
@@ -272,11 +440,14 @@ fun FullScreenMapPicker(
                 Box(modifier = Modifier.weight(1f)) {
                     OSMMapView(
                         modifier = Modifier.fillMaxSize(),
-                        initialLocation = initialLocation,
+                        initialLocation = userLocation ?: initialLocation,
                         markers = selectedLocation?.let { listOf(it to selectedAddress) } ?: emptyList(),
                         onMapClick = { geoPoint ->
                             selectedLocation = geoPoint
                             isLoadingAddress = true
+                            
+                            // Update the current map location in ViewModel
+                            onMapLocationUpdate?.invoke(geoPoint)
                             
                             // Get address asynchronously
                             coroutineScope.launch {
@@ -284,7 +455,8 @@ fun FullScreenMapPicker(
                                 isLoadingAddress = false
                             }
                         },
-                        showLocationButton = true
+                        showLocationButton = true,
+                        centerOnUserLocation = userLocation != null
                     )
                     
                     // Loading indicator

@@ -2,6 +2,7 @@ package com.example.taxi_app.ui.screens
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -22,6 +23,7 @@ import com.example.taxi_app.ui.theme.*
 fun FleetScreen(
     company: Company,
     vehicles: List<Vehicle>,
+    navigationScrollState: LazyListState,
     onNavigate: (Screen) -> Unit,
     onAddVehicle: (String, String, String, String, Int) -> Unit,
     onLogout: () -> Unit
@@ -35,24 +37,29 @@ fun FleetScreen(
     TaxiLayout(
         company = company,
         currentScreen = Screen.Fleet,
+        navigationScrollState = navigationScrollState,
         onNavigate = onNavigate,
         onLogout = onLogout
     ) {
-        Column(
-            modifier = Modifier.fillMaxSize()
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(bottom = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Text(
-                text = "Ֆլոտ",
-                fontSize = 28.sp,
-                fontWeight = FontWeight.Bold,
-                color = TaxiBlack,
-                modifier = Modifier.padding(bottom = 16.dp)
-            )
+            item {
+                Text(
+                    text = "Ֆլոտ",
+                    fontSize = 28.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = TaxiBlack
+                )
+            }
             
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(24.dp)
-            ) {
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(24.dp)
+                ) {
                 // Add vehicle form
                 Card(
                     modifier = Modifier.weight(1f),
@@ -140,10 +147,10 @@ fun FleetScreen(
                     if (vehicles.isEmpty()) {
                         EmptyState(message = "Դատարկ է")
                     } else {
-                        LazyColumn(
+                        Column(
                             verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            items(vehicles) { vehicle ->
+                            vehicles.forEach { vehicle ->
                                 Card(
                                     modifier = Modifier.fillMaxWidth(),
                                     shape = RoundedCornerShape(16.dp),
@@ -169,6 +176,7 @@ fun FleetScreen(
                             }
                         }
                     }
+                }
                 }
             }
         }

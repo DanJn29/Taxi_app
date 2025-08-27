@@ -40,6 +40,9 @@ fun TaxiApp() {
     val trips by viewModel.trips.collectAsState()
     val requests by viewModel.requests.collectAsState()
     
+    // Map location data
+    val currentMapLocation by viewModel.currentMapLocation.collectAsState()
+    
     // Client data
     val availableTrips by viewModel.availableTrips.collectAsState()
     val clientBookings by viewModel.clientBookings.collectAsState()
@@ -68,6 +71,7 @@ fun TaxiApp() {
                 Screen.Dashboard -> {
                     DashboardScreen(
                         company = company,
+                        navigationScrollState = viewModel.navigationScrollState,
                         onNavigate = viewModel::navigateToScreen,
                         onLogout = viewModel::logout
                     )
@@ -76,6 +80,7 @@ fun TaxiApp() {
                     FleetScreen(
                         company = company,
                         vehicles = vehicles,
+                        navigationScrollState = viewModel.navigationScrollState,
                         onNavigate = viewModel::navigateToScreen,
                         onAddVehicle = viewModel::addVehicle,
                         onLogout = viewModel::logout
@@ -85,6 +90,7 @@ fun TaxiApp() {
                     MembersScreen(
                         company = company,
                         members = members,
+                        navigationScrollState = viewModel.navigationScrollState,
                         onNavigate = viewModel::navigateToScreen,
                         onAddMember = viewModel::addMember,
                         onLogout = viewModel::logout
@@ -96,11 +102,14 @@ fun TaxiApp() {
                         trips = trips,
                         vehicles = vehicles,
                         drivers = viewModel.getDrivers(),
+                        currentMapLocation = currentMapLocation,
+                        navigationScrollState = viewModel.navigationScrollState,
                         onNavigate = viewModel::navigateToScreen,
                         onAddTrip = viewModel::addTrip,
                         onPublishTrip = viewModel::publishTrip,
                         onArchiveTrip = viewModel::archiveTrip,
                         onUnarchiveTrip = viewModel::unarchiveTrip,
+                        onUpdateMapLocation = viewModel::updateCurrentMapLocation,
                         onLogout = viewModel::logout
                     )
                 }
@@ -108,6 +117,7 @@ fun TaxiApp() {
                     RequestsScreen(
                         company = company,
                         requests = requests.filter { it.status == "pending" },
+                        navigationScrollState = viewModel.navigationScrollState,
                         onNavigate = viewModel::navigateToScreen,
                         onAcceptRequest = viewModel::acceptRequest,
                         onDeclineRequest = viewModel::declineRequest,

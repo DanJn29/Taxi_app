@@ -1,8 +1,10 @@
 package com.example.taxi_app.viewmodel
 
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.taxi_app.data.*
+import org.osmdroid.util.GeoPoint
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -42,6 +44,13 @@ class TaxiViewModel : ViewModel() {
     
     private val _requests = MutableStateFlow<List<Request>>(emptyList())
     val requests: StateFlow<List<Request>> = _requests.asStateFlow()
+    
+    // Map Location State - preserves current location across navigation
+    private val _currentMapLocation = MutableStateFlow<GeoPoint?>(null)
+    val currentMapLocation: StateFlow<GeoPoint?> = _currentMapLocation.asStateFlow()
+    
+    // Navigation Scroll State - preserves navbar scroll position across navigation
+    val navigationScrollState = LazyListState()
     
     // Client Data
     private val _availableTrips = MutableStateFlow<List<Trip>>(emptyList())
@@ -368,8 +377,14 @@ class TaxiViewModel : ViewModel() {
         return _members.value.filter { it.role == "driver" }
     }
     
+    // Map location functions
+    fun updateCurrentMapLocation(location: GeoPoint) {
+        _currentMapLocation.value = location
+    }
+    
     fun logout() {
         _currentUser.value = null
         _appMode.value = null
+        _currentMapLocation.value = null // Reset map location on logout
     }
 }

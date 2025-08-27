@@ -2,6 +2,7 @@ package com.example.taxi_app.ui.screens
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -21,6 +22,7 @@ import com.example.taxi_app.ui.theme.*
 fun MembersScreen(
     company: Company,
     members: List<User>,
+    navigationScrollState: LazyListState,
     onNavigate: (Screen) -> Unit,
     onAddMember: (String, String, String, String) -> Unit,
     onLogout: () -> Unit
@@ -38,24 +40,29 @@ fun MembersScreen(
     TaxiLayout(
         company = company,
         currentScreen = Screen.Members,
+        navigationScrollState = navigationScrollState,
         onNavigate = onNavigate,
         onLogout = onLogout
     ) {
-        Column(
-            modifier = Modifier.fillMaxSize()
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(bottom = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Text(
-                text = "Վարորդներ / աշխատակիցներ",
-                fontSize = 28.sp,
-                fontWeight = FontWeight.Bold,
-                color = TaxiBlack,
-                modifier = Modifier.padding(bottom = 16.dp)
-            )
+            item {
+                Text(
+                    text = "Վարորդներ / աշխատակիցներ",
+                    fontSize = 28.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = TaxiBlack
+                )
+            }
             
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(24.dp)
-            ) {
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(24.dp)
+                ) {
                 // Add member form
                 Card(
                     modifier = Modifier.weight(1f),
@@ -143,10 +150,10 @@ fun MembersScreen(
                     if (members.isEmpty()) {
                         EmptyState(message = "Դատարկ է")
                     } else {
-                        LazyColumn(
+                        Column(
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            items(members) { member ->
+                            members.forEach { member ->
                                 Card(
                                     modifier = Modifier.fillMaxWidth(),
                                     shape = RoundedCornerShape(12.dp),
@@ -177,6 +184,7 @@ fun MembersScreen(
                             }
                         }
                     }
+                }
                 }
             }
         }

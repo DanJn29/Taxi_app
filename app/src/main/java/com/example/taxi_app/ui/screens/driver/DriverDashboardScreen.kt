@@ -32,213 +32,222 @@ fun DriverDashboardScreen(
 ) {
     var isAvailable by remember { mutableStateOf(true) }
 
-    Column(
+    LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .background(TaxiBackground)
+            .background(TaxiBackground),
+        contentPadding = PaddingValues(bottom = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Top Bar
-        TopAppBar(
-            title = {
-                Column {
-                    Text(
-                        text = "Բարև, ${driver.name.split(" ").firstOrNull() ?: ""}",
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = TaxiBlack
+        item {
+            // Top Bar
+            TopAppBar(
+                title = {
+                    Column {
+                        Text(
+                            text = "Բարև, ${driver.name.split(" ").firstOrNull() ?: ""}",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = TaxiBlack
+                        )
+                        Text(
+                            text = if (isAvailable) "Հասանելի" else "Հասանելի չէ",
+                            fontSize = 14.sp,
+                            color = if (isAvailable) StatusPublished else StatusError
+                        )
+                    }
+                },
+                actions = {
+                    // Availability Toggle
+                    Switch(
+                        checked = isAvailable,
+                        onCheckedChange = { 
+                            isAvailable = it
+                            onToggleAvailability()
+                        },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = TaxiYellow,
+                            checkedTrackColor = TaxiBlack
+                        )
                     )
-                    Text(
-                        text = if (isAvailable) "Հասանելի" else "Հասանելի չէ",
-                        fontSize = 14.sp,
-                        color = if (isAvailable) StatusPublished else StatusError
-                    )
-                }
-            },
-            actions = {
-                // Availability Toggle
-                Switch(
-                    checked = isAvailable,
-                    onCheckedChange = { 
-                        isAvailable = it
-                        onToggleAvailability()
-                    },
-                    colors = SwitchDefaults.colors(
-                        checkedThumbColor = TaxiYellow,
-                        checkedTrackColor = TaxiBlack
-                    )
+                    
+                    IconButton(onClick = onViewProfile) {
+                        Icon(
+                            imageVector = Icons.Default.AccountCircle,
+                            contentDescription = "Պրոֆիլ",
+                            tint = TaxiBlack
+                        )
+                    }
+                    
+                    IconButton(onClick = onLogout) {
+                        Icon(
+                            imageVector = Icons.Default.ExitToApp,
+                            contentDescription = "Դուրս գալ",
+                            tint = TaxiBlack
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = TaxiYellow
                 )
-                
-                IconButton(onClick = onViewProfile) {
-                    Icon(
-                        imageVector = Icons.Default.AccountCircle,
-                        contentDescription = "Պրոֆիլ",
-                        tint = TaxiBlack
-                    )
-                }
-                
-                IconButton(onClick = onLogout) {
-                    Icon(
-                        imageVector = Icons.Default.ExitToApp,
-                        contentDescription = "Դուրս գալ",
-                        tint = TaxiBlack
-                    )
-                }
-            },
-            colors = TopAppBarDefaults.topAppBarColors(
-                containerColor = TaxiYellow
             )
-        )
+        }
         
-        Column(
-            modifier = Modifier.padding(16.dp)
-        ) {
+        item {
             // Stats Cards
-            LazyColumn(
+            Column(
+                modifier = Modifier.padding(horizontal = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                item {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        StatCard(
-                            title = "Այսօրվա եկամուտ",
-                            value = "${stats.todayEarnings} AMD",
-                            icon = Icons.Default.MonetizationOn,
-                            modifier = Modifier.weight(1f)
-                        )
-                        
-                        StatCard(
-                            title = "Այսօրվա երթուղիներ",
-                            value = stats.todayTrips.toString(),
-                            icon = Icons.Default.DirectionsCar,
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-                }
-                
-                item {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        StatCard(
-                            title = "Ընդհանուր գնահատական",
-                            value = "⭐ ${stats.rating}",
-                            icon = Icons.Default.Star,
-                            modifier = Modifier.weight(1f)
-                        )
-                        
-                        StatCard(
-                            title = "Ընդհանուր երթուղիներ",
-                            value = stats.totalTrips.toString(),
-                            icon = Icons.Default.Assignment,
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-                }
-                
-                item {
-                    // Earnings Summary Card
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = TaxiYellow.copy(alpha = 0.1f)),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(20.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column {
-                                Text(
-                                    text = "Ընդհանուր եկամուտ",
-                                    fontSize = 16.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = TaxiBlack
-                                )
-                                Text(
-                                    text = "${stats.totalEarnings} AMD",
-                                    fontSize = 24.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = TaxiBlack
-                                )
-                            }
-                            
-                            TaxiButton(
-                                text = "Տեսնել մանրամասն",
-                                onClick = onViewEarnings
-                            )
-                        }
-                    }
-                }
-                
-                item {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    
-                    Text(
-                        text = "Հասանելի երթուղիներ",
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = TaxiBlack
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    StatCard(
+                        title = "Այսօրվա եկամուտ",
+                        value = "${stats.todayEarnings} AMD",
+                        icon = Icons.Default.MonetizationOn,
+                        modifier = Modifier.weight(1f)
                     )
                     
-                    if (stats.pendingTrips > 0) {
-                        Text(
-                            text = "${stats.pendingTrips} նոր հայտ",
-                            fontSize = 14.sp,
-                            color = StatusPublished,
-                            fontWeight = FontWeight.Medium
+                    StatCard(
+                        title = "Այսօրվա երթուղիներ",
+                        value = stats.todayTrips.toString(),
+                        icon = Icons.Default.DirectionsCar,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    StatCard(
+                        title = "Ընդհանուր գնահատական",
+                        value = "⭐ ${stats.rating}",
+                        icon = Icons.Default.Star,
+                        modifier = Modifier.weight(1f)
+                    )
+                    
+                    StatCard(
+                        title = "Ընդհանուր երթուղիներ",
+                        value = stats.totalTrips.toString(),
+                        icon = Icons.Default.Assignment,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                
+                // Earnings Summary Card
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = TaxiYellow.copy(alpha = 0.1f)),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(20.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(
+                                text = "Ընդհանուր եկամուտ",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = TaxiBlack
+                            )
+                            Text(
+                                text = "${stats.totalEarnings} AMD",
+                                fontSize = 24.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TaxiBlack
+                            )
+                        }
+                        
+                        TaxiButton(
+                            text = "Տեսնել մանրամասն",
+                            onClick = onViewEarnings
                         )
                     }
                 }
-                
-                if (!isAvailable) {
-                    item {
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(16.dp),
-                            colors = CardDefaults.cardColors(containerColor = StatusError.copy(alpha = 0.1f))
-                        ) {
-                            Column(
-                                modifier = Modifier.padding(20.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.PauseCircle,
-                                    contentDescription = null,
-                                    tint = StatusError,
-                                    modifier = Modifier.size(48.dp)
-                                )
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Text(
-                                    text = "Դուք հասանելի չեք",
-                                    fontSize = 18.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = TaxiBlack
-                                )
-                                Text(
-                                    text = "Երթուղիներ ստանալու համար անցեք հասանելի ռեժիմ",
-                                    fontSize = 14.sp,
-                                    color = TaxiGray
-                                )
-                            }
-                        }
-                    }
-                } else if (availableTrips.isEmpty()) {
-                    item {
-                        EmptyState(message = "Նոր երթուղիներ չկան")
-                    }
-                } else {
-                    items(availableTrips) { trip ->
-                        DriverTripCard(
-                            trip = trip,
-                            onAccept = { onAcceptTrip(trip.id) }
+            }
+        }
+        
+        item {
+            Text(
+                text = "Հասանելի երթուղիներ",
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+                color = TaxiBlack,
+                modifier = Modifier.padding(horizontal = 16.dp)
+            )
+            
+            if (stats.pendingTrips > 0) {
+                Text(
+                    text = "${stats.pendingTrips} նոր հայտ",
+                    fontSize = 14.sp,
+                    color = StatusPublished,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier.padding(horizontal = 16.dp)
+                )
+            }
+        }
+
+        if (!isAvailable) {
+            item {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = StatusError.copy(alpha = 0.1f))
+                ) {
+                    Column(
+                        modifier = Modifier.padding(20.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.PauseCircle,
+                            contentDescription = null,
+                            tint = StatusError,
+                            modifier = Modifier.size(48.dp)
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Դուք հասանելի չեք",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = TaxiBlack
+                        )
+                        Text(
+                            text = "Երթուղիներ ստանալու համար անցեք հասանելի ռեժիմ",
+                            fontSize = 14.sp,
+                            color = TaxiGray
                         )
                     }
+                }
+            }
+        } else if (availableTrips.isEmpty()) {
+            item {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp)
+                ) {
+                    EmptyState(message = "Նոր երթուղիներ չկան")
+                }
+            }
+        } else {
+            items(availableTrips) { trip ->
+                Box(
+                    modifier = Modifier.padding(horizontal = 16.dp)
+                ) {
+                    DriverTripCard(
+                        trip = trip,
+                        onAccept = { onAcceptTrip(trip.id) }
+                    )
                 }
             }
         }

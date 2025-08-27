@@ -2,6 +2,7 @@ package com.example.taxi_app.ui.screens
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -22,11 +23,14 @@ fun TripsScreen(
     trips: List<Trip>,
     vehicles: List<Vehicle>,
     drivers: List<User>,
+    currentMapLocation: GeoPoint?,
+    navigationScrollState: LazyListState,
     onNavigate: (Screen) -> Unit,
     onAddTrip: (Trip) -> Unit,
     onPublishTrip: (String) -> Unit,
     onArchiveTrip: (String) -> Unit,
     onUnarchiveTrip: (String) -> Unit,
+    onUpdateMapLocation: (GeoPoint) -> Unit,
     onLogout: () -> Unit
 ) {
     var selectedVehicle by remember { mutableStateOf(vehicles.firstOrNull()?.id ?: "") }
@@ -43,28 +47,35 @@ fun TripsScreen(
     TaxiLayout(
         company = company,
         currentScreen = Screen.Trips,
+        navigationScrollState = navigationScrollState,
         onNavigate = onNavigate,
         onLogout = onLogout
     ) {
-        Column(
-            modifier = Modifier.fillMaxSize()
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+            contentPadding = PaddingValues(bottom = 16.dp)
         ) {
-            Text(
-                text = "Երթուղիներ",
-                fontSize = 28.sp,
-                fontWeight = FontWeight.Bold,
-                color = TaxiBlack,
-                modifier = Modifier.padding(bottom = 16.dp)
-            )
+            // Title
+            item {
+                Text(
+                    text = "Երթուղիներ",
+                    fontSize = 28.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = TaxiBlack,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+            }
             
             // Create trip form
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 24.dp),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = TaxiWhite)
-            ) {
+            item {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 8.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = TaxiWhite)
+                ) {
                 Column(
                     modifier = Modifier.padding(16.dp)
                 ) {
@@ -101,6 +112,8 @@ fun TripsScreen(
                                 label = "Որտեղից (հասցե)",
                                 address = fromAddr,
                                 onAddressChange = { fromAddr = it },
+                                currentMapLocation = currentMapLocation,
+                                onMapLocationUpdate = onUpdateMapLocation,
                                 modifier = Modifier.padding(bottom = 12.dp)
                             )
                             
@@ -108,6 +121,8 @@ fun TripsScreen(
                                 label = "Ուր (հասցե)",
                                 address = toAddr,
                                 onAddressChange = { toAddr = it },
+                                currentMapLocation = currentMapLocation,
+                                onMapLocationUpdate = onUpdateMapLocation,
                                 modifier = Modifier.padding(bottom = 12.dp)
                             )
                         }
@@ -187,22 +202,21 @@ fun TripsScreen(
                     )
                 }
             }
+            }
             
             // Trips list
             if (trips.isEmpty()) {
-                EmptyState(message = "Դատարկ է")
+                item {
+                    EmptyState(message = "Դատարկ է")
+                }
             } else {
-                LazyColumn(
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    items(trips) { trip ->
-                        TripCard(
-                            trip = trip,
-                            onPublish = { onPublishTrip(trip.id) },
-                            onArchive = { onArchiveTrip(trip.id) },
-                            onUnarchive = { onUnarchiveTrip(trip.id) }
-                        )
-                    }
+                items(trips) { trip ->
+                    TripCard(
+                        trip = trip,
+                        onPublish = { onPublishTrip(trip.id) },
+                        onArchive = { onArchiveTrip(trip.id) },
+                        onUnarchive = { onUnarchiveTrip(trip.id) }
+                    )
                 }
             }
         }

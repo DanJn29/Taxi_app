@@ -3,8 +3,10 @@ package com.example.taxi_app.ui.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -27,6 +29,7 @@ import com.example.taxi_app.ui.theme.*
 fun TaxiLayout(
     company: Company,
     currentScreen: Screen,
+    navigationScrollState: LazyListState,
     onNavigate: (Screen) -> Unit,
     onLogout: (() -> Unit)? = null,
     content: @Composable () -> Unit
@@ -55,29 +58,19 @@ fun TaxiLayout(
         ) {
             // Header
             Surface(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .statusBarsPadding(),
                 color = TaxiYellow,
                 shadowElevation = 4.dp
             ) {
                 Column {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(headerPadding),
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "Taxi Platform · ${company.name}",
-                            fontSize = titleSize,
-                            fontWeight = FontWeight.Bold,
-                            color = TaxiBlack
-                        )
-                    }
-                    
                     // Navigation tabs
                     LazyRow(
-                        modifier = Modifier.fillMaxWidth(),
+                        state = navigationScrollState,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = if (isSmallScreen) 8.dp else 12.dp),
                         contentPadding = tabPadding,
                         horizontalArrangement = Arrangement.spacedBy(if (isSmallScreen) 6.dp else 8.dp)
                     ) {
@@ -144,7 +137,6 @@ fun TaxiLayout(
                         }
                     }
                 }
-                Spacer(modifier = Modifier.height(8.dp))
             }
             
             // Content
