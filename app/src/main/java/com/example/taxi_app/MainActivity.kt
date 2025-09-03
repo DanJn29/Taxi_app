@@ -43,6 +43,11 @@ fun TaxiApp() {
     // Map location data
     val currentMapLocation by viewModel.currentMapLocation.collectAsState()
     
+    // Loading and error states
+    val isLoading by viewModel.isLoading.collectAsState()
+    val errorMessage by viewModel.errorMessage.collectAsState()
+    val successMessage by viewModel.successMessage.collectAsState()
+    
     // Client data
     val availableTrips by viewModel.availableTrips.collectAsState()
     val clientBookings by viewModel.clientBookings.collectAsState()
@@ -65,7 +70,10 @@ fun TaxiApp() {
                 Screen.CompanyLogin -> {
                     CompanyLoginScreen(
                         onLogin = viewModel::loginCompany,
-                        onBackToModeSelector = viewModel::resetToModeSelector
+                        onBackToModeSelector = viewModel::resetToModeSelector,
+                        isLoading = isLoading,
+                        errorMessage = errorMessage,
+                        onClearError = viewModel::clearError
                     )
                 }
                 Screen.Dashboard -> {
@@ -135,14 +143,22 @@ fun TaxiApp() {
                     ClientLoginScreen(
                         onLogin = viewModel::loginClient,
                         onNavigateToRegister = { viewModel.navigateToScreen(Screen.ClientRegister) },
-                        onBackToModeSelector = viewModel::resetToModeSelector
+                        onBackToModeSelector = viewModel::resetToModeSelector,
+                        isLoading = isLoading,
+                        errorMessage = errorMessage,
+                        onClearError = viewModel::clearError
                     )
                 }
                 Screen.ClientRegister -> {
                     ClientRegisterScreen(
                         onRegister = viewModel::registerClient,
                         onNavigateToLogin = { viewModel.navigateToScreen(Screen.ClientLogin) },
-                        onBackToLogin = { viewModel.navigateToScreen(Screen.ClientLogin) }
+                        onBackToLogin = { viewModel.navigateToScreen(Screen.ClientLogin) },
+                        isLoading = isLoading,
+                        errorMessage = errorMessage,
+                        successMessage = successMessage,
+                        onClearError = viewModel::clearError,
+                        onClearSuccess = viewModel::clearSuccessMessage
                     )
                 }
                 Screen.ClientHome -> {
@@ -204,7 +220,10 @@ fun TaxiApp() {
                 Screen.DriverLogin -> {
                     DriverLoginScreen(
                         onLogin = viewModel::loginDriver,
-                        onBackToModeSelector = viewModel::resetToModeSelector
+                        onBackToModeSelector = viewModel::resetToModeSelector,
+                        isLoading = isLoading,
+                        errorMessage = errorMessage,
+                        onClearError = viewModel::clearError
                     )
                 }
                 Screen.DriverDashboard -> {

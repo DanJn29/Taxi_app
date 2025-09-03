@@ -27,7 +27,10 @@ import com.example.taxi_app.ui.theme.*
 @Composable
 fun DriverLoginScreen(
     onLogin: (String, String) -> Unit,
-    onBackToModeSelector: () -> Unit
+    onBackToModeSelector: () -> Unit,
+    isLoading: Boolean = false,
+    errorMessage: String? = null,
+    onClearError: () -> Unit = {}
 ) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -152,21 +155,65 @@ fun DriverLoginScreen(
                 )
             )
             
+            // Error message display
+            errorMessage?.let { error ->
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 16.dp),
+                    shape = RoundedCornerShape(8.dp),
+                    colors = CardDefaults.cardColors(containerColor = androidx.compose.ui.graphics.Color.Red.copy(alpha = 0.1f))
+                ) {
+                    Text(
+                        text = error,
+                        color = androidx.compose.ui.graphics.Color.Red,
+                        fontSize = 14.sp,
+                        modifier = Modifier.padding(12.dp)
+                    )
+                }
+            }
+            
             // Login button
             Button(
-                onClick = { onLogin(email, password) },
+                onClick = { 
+                    onClearError() // Clear any previous errors
+                    onLogin(email, password) 
+                },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp),
+                enabled = !isLoading,
                 shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = TaxiYellow)
-            ) {
-                Text(
-                    text = "Մուտք",
-                    color = TaxiBlack,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.SemiBold
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = TaxiYellow,
+                    disabledContainerColor = TaxiYellow.copy(alpha = 0.6f)
                 )
+            ) {
+                if (isLoading) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            color = TaxiBlack,
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Մուտք գործում է...",
+                            color = TaxiBlack,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                } else {
+                    Text(
+                        text = "Մուտք",
+                        color = TaxiBlack,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
             }
             
             Spacer(modifier = Modifier.weight(1f))

@@ -28,11 +28,13 @@ import com.example.taxi_app.ui.theme.TaxiYellow
 @Composable
 fun CompanyLoginScreen(
     onLogin: (String, String) -> Unit,
-    onBackToModeSelector: () -> Unit
+    onBackToModeSelector: () -> Unit,
+    isLoading: Boolean = false,
+    errorMessage: String? = null,
+    onClearError: () -> Unit = {}
 ) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
-    var isLoading by remember { mutableStateOf(false) }
 
     BoxWithConstraints(
         modifier = Modifier
@@ -178,11 +180,29 @@ fun CompanyLoginScreen(
 
         Spacer(modifier = Modifier.height(if (isSmallScreen) 24.dp else 32.dp))
 
+        // Error message display
+        errorMessage?.let { error ->
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 16.dp),
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+                colors = CardDefaults.cardColors(containerColor = androidx.compose.ui.graphics.Color.Red.copy(alpha = 0.1f))
+            ) {
+                Text(
+                    text = error,
+                    color = androidx.compose.ui.graphics.Color.Red,
+                    fontSize = 14.sp,
+                    modifier = Modifier.padding(12.dp)
+                )
+            }
+        }
+
         // Login button
         Button(
             onClick = {
                 if (email.isNotBlank() && password.isNotBlank()) {
-                    isLoading = true
+                    onClearError() // Clear any previous errors
                     onLogin(email, password)
                 }
             },

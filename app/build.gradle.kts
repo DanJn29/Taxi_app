@@ -67,6 +67,11 @@ dependencies {
     // ViewModel
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0")
     
+    // HTTP Client for API calls
+    implementation("com.squareup.retrofit2:retrofit:2.9.0")
+    implementation("com.squareup.retrofit2:converter-gson:2.9.0")
+    implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
+    
     // Maps - OSMDroid (Open Source Maps)
     implementation("org.osmdroid:osmdroid-android:6.1.17")
     implementation("androidx.compose.ui:ui-viewbinding:1.5.8")

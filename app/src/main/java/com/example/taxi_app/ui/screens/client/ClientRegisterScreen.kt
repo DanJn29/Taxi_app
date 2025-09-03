@@ -21,21 +21,23 @@ import com.example.taxi_app.ui.theme.*
 
 @Composable
 fun ClientRegisterScreen(
-    onRegister: (String, String, String, String) -> Unit,
+    onRegister: (String, String, String) -> Unit,
     onNavigateToLogin: () -> Unit,
-    onBackToLogin: () -> Unit
+    onBackToLogin: () -> Unit,
+    isLoading: Boolean = false,
+    errorMessage: String? = null,
+    successMessage: String? = null,
+    onClearError: () -> Unit = {},
+    onClearSuccess: () -> Unit = {}
 ) {
     var name by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
-    var phone by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
     var acceptTerms by remember { mutableStateOf(false) }
-    var isLoading by remember { mutableStateOf(false) }
 
     val isFormValid = name.isNotBlank() && 
                      email.isNotBlank() && 
-                     phone.isNotBlank() && 
                      password.isNotBlank() && 
                      password == confirmPassword && 
                      acceptTerms
@@ -181,14 +183,53 @@ fun ClientRegisterScreen(
                             modifier = Modifier.padding(bottom = fieldSpacing)
                         )
                         
-                        TaxiTextField(
-                            value = phone,
-                            onValueChange = { phone = it },
-                            label = "Հեռախոսահամար",
-                            keyboardType = KeyboardType.Phone,
-                            placeholder = "+374 XX XXX XXX",
-                            modifier = Modifier.padding(bottom = fieldSpacing)
-                        )
+                        // Error message display
+                        errorMessage?.let { error ->
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = fieldSpacing),
+                                shape = RoundedCornerShape(8.dp),
+                                colors = CardDefaults.cardColors(containerColor = androidx.compose.ui.graphics.Color.Red.copy(alpha = 0.1f))
+                            ) {
+                                Text(
+                                    text = error,
+                                    color = androidx.compose.ui.graphics.Color.Red,
+                                    fontSize = 14.sp,
+                                    modifier = Modifier.padding(12.dp)
+                                )
+                            }
+                        }
+                        
+                        // Success message display
+                        successMessage?.let { success ->
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = fieldSpacing),
+                                shape = RoundedCornerShape(8.dp),
+                                colors = CardDefaults.cardColors(containerColor = androidx.compose.ui.graphics.Color.Green.copy(alpha = 0.1f))
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.CheckCircle,
+                                        contentDescription = null,
+                                        tint = androidx.compose.ui.graphics.Color.Green,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = success,
+                                        color = androidx.compose.ui.graphics.Color.Green,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
+                            }
+                        }
                         
                         TaxiTextField(
                             value = password,
@@ -263,8 +304,9 @@ fun ClientRegisterScreen(
                         Button(
                             onClick = {
                                 if (isFormValid) {
-                                    isLoading = true
-                                    onRegister(name, email, phone, password)
+                                    onClearError() // Clear any previous errors
+                                    onClearSuccess() // Clear any previous success messages
+                                    onRegister(name, email, password)
                                 }
                             },
                             modifier = Modifier
@@ -279,11 +321,29 @@ fun ClientRegisterScreen(
                                 disabledContentColor = TaxiBlack.copy(alpha = 0.6f)
                             )
                         ) {
-                            Text(
-                                text = if (isLoading) "Գրանցվում է..." else "Գրանցվել",
-                                fontWeight = FontWeight.SemiBold,
-                                fontSize = if (isSmallScreen) 14.sp else 16.sp
-                            )
+                            if (isLoading) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(16.dp),
+                                        color = TaxiBlack,
+                                        strokeWidth = 2.dp
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = "Գրանցվում է...",
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontSize = if (isSmallScreen) 14.sp else 16.sp
+                                    )
+                                }
+                            } else {
+                                Text(
+                                    text = "Գրանցվել",
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = if (isSmallScreen) 14.sp else 16.sp
+                                )
+                            }
                         }
                     }
                 }
