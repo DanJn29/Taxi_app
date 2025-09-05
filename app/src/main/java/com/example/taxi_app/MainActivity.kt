@@ -10,6 +10,7 @@ import com.example.taxi_app.data.*
 import com.example.taxi_app.ui.screens.*
 import com.example.taxi_app.ui.screens.client.*
 import com.example.taxi_app.ui.screens.driver.*
+import com.example.taxi_app.ui.screens.company.*
 import com.example.taxi_app.ui.theme.Taxi_appTheme
 import com.example.taxi_app.viewmodel.TaxiViewModel
 
@@ -71,9 +72,17 @@ fun TaxiApp() {
                     CompanyLoginScreen(
                         onLogin = viewModel::loginCompany,
                         onBackToModeSelector = viewModel::resetToModeSelector,
+                        onRegister = { viewModel.navigateToScreen(Screen.CompanyRegister) },
                         isLoading = isLoading,
                         errorMessage = errorMessage,
                         onClearError = viewModel::clearError
+                    )
+                }
+                Screen.CompanyRegister -> {
+                    CompanyRegisterScreen(
+                        viewModel = viewModel,
+                        onBack = { viewModel.navigateToScreen(Screen.CompanyLogin) },
+                        onNavigateToLogin = { viewModel.navigateToScreen(Screen.CompanyLogin) }
                     )
                 }
                 Screen.Dashboard -> {
@@ -221,9 +230,22 @@ fun TaxiApp() {
                     DriverLoginScreen(
                         onLogin = viewModel::loginDriver,
                         onBackToModeSelector = viewModel::resetToModeSelector,
+                        onNavigateToRegister = { viewModel.navigateToScreen(Screen.DriverRegister) },
                         isLoading = isLoading,
                         errorMessage = errorMessage,
                         onClearError = viewModel::clearError
+                    )
+                }
+                Screen.DriverRegister -> {
+                    DriverRegisterScreen(
+                        onRegister = viewModel::registerDriver,
+                        onNavigateToLogin = { viewModel.navigateToScreen(Screen.DriverLogin) },
+                        onBackToLogin = { viewModel.navigateToScreen(Screen.DriverLogin) },
+                        isLoading = isLoading,
+                        errorMessage = errorMessage,
+                        successMessage = successMessage,
+                        onClearError = viewModel::clearError,
+                        onClearSuccess = viewModel::clearSuccessMessage
                     )
                 }
                 Screen.DriverDashboard -> {

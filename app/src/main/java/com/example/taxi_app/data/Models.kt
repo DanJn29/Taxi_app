@@ -127,6 +127,7 @@ data class PaymentMethod(
 sealed class Screen(val route: String) {
     // Company screens
     object CompanyLogin : Screen("company_login")
+    object CompanyRegister : Screen("company_register")
     object Dashboard : Screen("dashboard")
     object Fleet : Screen("fleet")
     object Members : Screen("members")
@@ -144,6 +145,7 @@ sealed class Screen(val route: String) {
     
     // Driver screens
     object DriverLogin : Screen("driver_login")
+    object DriverRegister : Screen("driver_register")
     object DriverDashboard : Screen("driver_dashboard")
     object DriverTrips : Screen("driver_trips")
     object DriverEarnings : Screen("driver_earnings")

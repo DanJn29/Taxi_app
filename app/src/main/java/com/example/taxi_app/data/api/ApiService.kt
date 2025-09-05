@@ -1,13 +1,17 @@
 package com.example.taxi_app.data.api
 
 import retrofit2.Response
-import retrofit2.http.Body
-import retrofit2.http.Header
-import retrofit2.http.POST
+import retrofit2.http.*
 
 interface ApiService {
-    @POST("register/client/")
+    @POST("register")
     suspend fun registerClient(@Body request: RegistrationRequest): Response<RegistrationResponse>
+
+    @POST("register/driver")
+    suspend fun registerDriver(@Body request: RegistrationRequest): Response<RegistrationResponse>
+
+    @POST("register/company")
+    suspend fun registerCompany(@Body request: CompanyRegistrationRequest): Response<RegistrationResponse>
 
     @POST("login")
     suspend fun loginClient(@Body request: LoginRequest): Response<LoginResponse>

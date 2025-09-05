@@ -37,6 +37,14 @@ data class RegistrationRequest(
     val password_confirmation: String
 )
 
+data class CompanyRegistrationRequest(
+    val name: String,
+    val email: String,
+    val password: String,
+    val password_confirmation: String,
+    val company_name: String
+)
+
 data class RegistrationResponse(
     val user: UserResponse?,
     val message: String?

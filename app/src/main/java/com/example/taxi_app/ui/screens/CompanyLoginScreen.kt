@@ -22,6 +22,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.taxi_app.ui.theme.TaxiBackground
+import com.example.taxi_app.ui.theme.TaxiBlack
+import com.example.taxi_app.ui.theme.TaxiGray
 import com.example.taxi_app.ui.theme.TaxiYellow
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -29,6 +31,7 @@ import com.example.taxi_app.ui.theme.TaxiYellow
 fun CompanyLoginScreen(
     onLogin: (String, String) -> Unit,
     onBackToModeSelector: () -> Unit,
+    onRegister: () -> Unit = {},
     isLoading: Boolean = false,
     errorMessage: String? = null,
     onClearError: () -> Unit = {}
@@ -230,34 +233,29 @@ fun CompanyLoginScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(if (isSmallScreen) 16.dp else 24.dp))
+        Spacer(modifier = Modifier.height(24.dp))
 
-        // Demo credentials info
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(
-                containerColor = Color.White.copy(alpha = 0.7f)
-            )
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp)
-            ) {
-                Text(
-                    text = "Դեմո տվյալներ:",
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black
-                )
-                Text(
-                    text = "Էլ. փոստ: admin@taxi.am",
-                    color = Color.Gray,
-                    modifier = Modifier.padding(top = 4.dp)
-                )
-                Text(
-                    text = "Գաղտնաբառ: կամայական",
-                    color = Color.Gray
-                )
-            } // End Card's Column
-        } // End Card
+                // Register link
+                Row(
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Նո՞ր ընկերություն ես։ ",
+                        color = TaxiGray,
+                        fontSize = 14.sp
+                    )
+                    TextButton(onClick = onRegister) {
+                        Text(
+                            text = "Գրանցվել",
+                            color = TaxiBlack,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+
+        Spacer(modifier = Modifier.height(16.dp))
             } // End main content Column
         } // End outer Column
     } // End BoxWithConstraints

@@ -28,6 +28,7 @@ import com.example.taxi_app.ui.theme.*
 fun DriverLoginScreen(
     onLogin: (String, String) -> Unit,
     onBackToModeSelector: () -> Unit,
+    onNavigateToRegister: () -> Unit,
     isLoading: Boolean = false,
     errorMessage: String? = null,
     onClearError: () -> Unit = {}
@@ -211,6 +212,28 @@ fun DriverLoginScreen(
                         text = "Մուտք",
                         color = TaxiBlack,
                         fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(24.dp))
+            
+            // Register link
+            Row(
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Նո՞ր վարորդ ես։ ",
+                    color = TaxiGray,
+                    fontSize = 14.sp
+                )
+                TextButton(onClick = onNavigateToRegister) {
+                    Text(
+                        text = "Գրանցվել",
+                        color = TaxiBlack,
+                        fontSize = 14.sp,
                         fontWeight = FontWeight.SemiBold
                     )
                 }

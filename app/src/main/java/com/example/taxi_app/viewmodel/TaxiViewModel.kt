@@ -9,6 +9,7 @@ import com.example.taxi_app.data.api.LoginRequest
 import com.example.taxi_app.data.api.LoginResponse
 import com.example.taxi_app.data.api.LogoutResponse
 import com.example.taxi_app.data.api.RegistrationRequest
+import com.example.taxi_app.data.api.CompanyRegistrationRequest
 import com.google.gson.Gson
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -143,6 +144,7 @@ class TaxiViewModel : ViewModel() {
                     if (loginResponse?.user != null && loginResponse.token != null) {
                         // Store the authentication token
                         _authToken.value = loginResponse.token
+                        android.util.Log.d("TaxiApp", "Login successful, stored token: ${loginResponse.token}")
                         
                         _currentUser.value = User(
                             id = loginResponse.user.id.toString(),
@@ -232,6 +234,117 @@ class TaxiViewModel : ViewModel() {
         _successMessage.value = null
     }
 
+    fun registerDriver(name: String, email: String, password: String) {
+        viewModelScope.launch {
+            try {
+                _isLoading.value = true
+                _errorMessage.value = null
+                _successMessage.value = null
+
+                val request = RegistrationRequest(
+                    name = name,
+                    email = email,
+                    password = password,
+                    password_confirmation = password
+                )
+                
+                // Use the driver registration endpoint
+                val response = NetworkModule.apiService.registerDriver(request)
+
+                if (response.isSuccessful) {
+                    val registrationResponse = response.body()
+                    if (registrationResponse?.user != null) {
+                        _successMessage.value = "Driver registration successful! Please wait until the admin approves your account."
+                    } else {
+                        _errorMessage.value = registrationResponse?.message ?: "Registration failed"
+                    }
+                } else {
+                    // Handle API error response with specific messages
+                    try {
+                        val errorBody = response.errorBody()?.string()
+                        val gson = Gson()
+                        val errorResponse = gson.fromJson(errorBody, ErrorResponse::class.java)
+                        
+                        when (errorResponse?.message) {
+                            "email_unverified" -> {
+                                _errorMessage.value = "Your email address is not verified. Please check your email and click the verification link."
+                            }
+                            "invalid_credentials" -> {
+                                _errorMessage.value = "Invalid email or password. Please check your credentials and try again."
+                            }
+                            "admin_approval_required" -> {
+                                _errorMessage.value = "Your account is pending admin approval. Please wait for approval before logging in."
+                            }
+                            else -> {
+                                _errorMessage.value = errorResponse?.message ?: "Registration failed: ${response.message()}"
+                            }
+                        }
+                    } catch (parseException: Exception) {
+                        // Fallback if JSON parsing fails
+                        _errorMessage.value = "Registration failed: ${response.message()}"
+                    }
+                }
+            } catch (e: Exception) {
+                _errorMessage.value = "Network error: ${e.message}"
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
+
+    fun registerCompany(name: String, email: String, password: String, confirmPassword: String, companyName: String) {
+        viewModelScope.launch {
+            try {
+                _isLoading.value = true
+                _errorMessage.value = null
+                _successMessage.value = null
+
+                val request = CompanyRegistrationRequest(
+                    name = name,
+                    email = email,
+                    password = password,
+                    password_confirmation = confirmPassword,
+                    company_name = companyName
+                )
+                val response = NetworkModule.apiService.registerCompany(request)
+
+                if (response.isSuccessful) {
+                    val registrationResponse = response.body()
+                    _successMessage.value = registrationResponse?.message ?: "Company registration successful! Please check your email for verification."
+                } else {
+                    // Handle API error response with specific messages
+                    try {
+                        val errorBody = response.errorBody()?.string()
+                        val gson = Gson()
+                        val errorResponse = gson.fromJson(errorBody, ErrorResponse::class.java)
+                        
+                        when (errorResponse?.message) {
+                            "email_unverified" -> {
+                                _errorMessage.value = "Your email address is not verified. Please check your email and click the verification link."
+                            }
+                            "invalid_credentials" -> {
+                                _errorMessage.value = "Invalid email or password. Please check your credentials and try again."
+                            }
+                            "admin_approval_required" -> {
+                                _errorMessage.value = "Your account is pending admin approval. Please wait for approval before logging in."
+                            }
+                            else -> {
+                                _errorMessage.value = errorResponse?.message ?: "Registration failed: ${response.message()}"
+                            }
+                        }
+                    } catch (parseException: Exception) {
+                        // Fallback if JSON parsing fails
+                        _errorMessage.value = "Registration failed: ${response.message()}"
+                    }
+                }
+            } catch (e: Exception) {
+                _errorMessage.value = "Network error: ${e.message}"
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
+
     // App mode functions
     fun selectAppMode(mode: AppMode) {
         _appMode.value = mode
@@ -266,6 +379,10 @@ class TaxiViewModel : ViewModel() {
                 if (response.isSuccessful) {
                     val loginResponse = response.body()
                     if (loginResponse?.user != null && loginResponse.token != null) {
+                        // Store the authentication token
+                        _authToken.value = loginResponse.token
+                        android.util.Log.d("TaxiApp", "Company login successful, stored token: ${loginResponse.token}")
+                        
                         _currentUser.value = User(
                             id = loginResponse.user.id.toString(),
                             name = loginResponse.user.name,
@@ -496,6 +613,10 @@ class TaxiViewModel : ViewModel() {
                 if (response.isSuccessful) {
                     val loginResponse = response.body()
                     if (loginResponse?.user != null && loginResponse.token != null) {
+                        // Store the authentication token
+                        _authToken.value = loginResponse.token
+                        android.util.Log.d("TaxiApp", "Driver login successful, stored token: ${loginResponse.token}")
+                        
                         _currentUser.value = User(
                             id = loginResponse.user.id.toString(),
                             name = loginResponse.user.name,
@@ -558,27 +679,34 @@ class TaxiViewModel : ViewModel() {
 
     // General functions
     fun logout() {
+        android.util.Log.d("TaxiApp", "Logout function called")
         viewModelScope.launch {
-            try {
-                // Call logout API if user has a token
-                _authToken.value?.let { token ->
-                    try {
-                        val response = NetworkModule.apiService.logout("Bearer $token")
-                        // Note: We don't need to handle the response for logout,
-                        // we clear local state regardless of API response
-                    } catch (e: Exception) {
-                        // Log error but continue with logout
-                        // In a production app, you might want to log this error
+            // Call logout API if user has a token
+            val token = _authToken.value
+            if (token != null) {
+                try {
+                    android.util.Log.d("TaxiApp", "Calling logout API with token: Bearer $token")
+                    val response = NetworkModule.apiService.logout("Bearer $token")
+                    android.util.Log.d("TaxiApp", "Logout API response: ${response.code()} - ${response.message()}")
+                    if (response.isSuccessful) {
+                        android.util.Log.d("TaxiApp", "Logout API call successful")
+                    } else {
+                        android.util.Log.w("TaxiApp", "Logout API call failed: ${response.code()}")
                     }
+                } catch (e: Exception) {
+                    android.util.Log.e("TaxiApp", "Logout API call error: ${e.message}", e)
                 }
-            } finally {
-                // Always clear local state regardless of API call result
-                _currentUser.value = null
-                _appMode.value = null
-                _currentMapLocation.value = null
-                _authToken.value = null // Clear the token
-                _currentScreen.value = Screen.Dashboard
+            } else {
+                android.util.Log.d("TaxiApp", "No auth token found, skipping logout API call")
             }
+            
+            // Always clear local state regardless of API call result
+            android.util.Log.d("TaxiApp", "Clearing local state for logout")
+            _currentUser.value = null
+            _appMode.value = null
+            _currentMapLocation.value = null
+            _authToken.value = null // Clear the token
+            _currentScreen.value = Screen.Dashboard
         }
     }
 

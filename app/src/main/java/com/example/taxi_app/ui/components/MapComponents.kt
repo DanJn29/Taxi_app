@@ -9,11 +9,15 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.MyLocation
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -77,6 +81,45 @@ suspend fun getCurrentLocation(context: Context): GeoPoint? {
     }
 }
 
+// Helper function to search for coordinates from address
+suspend fun getCoordinatesFromAddress(context: Context, address: String): GeoPoint? {
+    return withContext(Dispatchers.IO) {
+        try {
+            if (address.isBlank()) return@withContext null
+            
+            val geocoder = Geocoder(context, Locale.getDefault())
+            // Check if geocoder is available
+            if (!Geocoder.isPresent()) {
+                return@withContext null
+            }
+            
+            val addresses = geocoder.getFromLocationName(address, 5) // Get up to 5 results
+            val bestAddress = addresses?.firstOrNull()
+            
+            bestAddress?.let { addr ->
+                GeoPoint(addr.latitude, addr.longitude)
+            }
+        } catch (e: Exception) {
+            // If geocoding fails, try some common Armenian locations as fallback
+            when {
+                address.contains("Հանրապետության", ignoreCase = true) || 
+                address.contains("Republic", ignoreCase = true) -> 
+                    GeoPoint(40.1776, 44.5126) // Republic Square
+                
+                address.contains("Օպերա", ignoreCase = true) || 
+                address.contains("Opera", ignoreCase = true) -> 
+                    GeoPoint(40.1792, 44.5086) // Opera House
+                
+                address.contains("Կասկադ", ignoreCase = true) || 
+                address.contains("Cascade", ignoreCase = true) -> 
+                    GeoPoint(40.1854, 44.5156) // Cascade Complex
+                
+                else -> null
+            }
+        }
+    }
+}
+
 @Composable
 fun OSMMapView(
     modifier: Modifier = Modifier,
@@ -84,13 +127,22 @@ fun OSMMapView(
     markers: List<Pair<GeoPoint, String>> = emptyList(),
     onMapClick: ((GeoPoint) -> Unit)? = null,
     showLocationButton: Boolean = true,
-    centerOnUserLocation: Boolean = true
+    centerOnUserLocation: Boolean = true,
+    centerOnLocation: GeoPoint? = null // New parameter to center on specific location
 ) {
     val context = LocalContext.current
     var mapView by remember { mutableStateOf<MapView?>(null) }
     var userLocation by remember { mutableStateOf<GeoPoint?>(null) }
     var hasLocationPermission by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
+    
+    // Update map when centerOnLocation changes
+    LaunchedEffect(centerOnLocation) {
+        centerOnLocation?.let { location ->
+            mapView?.controller?.setZoom(16.0)
+            mapView?.controller?.animateTo(location)
+        }
+    }
     
     // Permission launcher
     val locationPermissionLauncher = rememberLauncherForActivityResult(
@@ -151,16 +203,20 @@ fun OSMMapView(
                         
                         val mapController: IMapController = controller
                         
-                        // Use user location if available and centerOnUserLocation is true, otherwise use initialLocation
-                        val centerLocation = if (centerOnUserLocation && userLocation != null) {
-                            userLocation!!
-                        } else {
-                            initialLocation
+                        // Determine which location to center on
+                        val centerLocation = when {
+                            centerOnLocation != null -> centerOnLocation
+                            centerOnUserLocation && userLocation != null -> userLocation!!
+                            else -> initialLocation
                         }
                         mapController.setCenter(centerLocation)
                         
-                        // Set higher zoom when centering on user location
-                        val zoomLevel = if (centerOnUserLocation && userLocation != null) 18.0 else 12.0
+                        // Set appropriate zoom level
+                        val zoomLevel = when {
+                            centerOnLocation != null -> 16.0 // Higher zoom for searched locations
+                            centerOnUserLocation && userLocation != null -> 18.0
+                            else -> 12.0
+                        }
                         mapController.setZoom(zoomLevel)
                         
                         // Add regular markers
@@ -218,6 +274,12 @@ fun OSMMapView(
                         this.title = title
                     }
                     view.overlays.add(marker)
+                }
+                
+                // Center and zoom on the specified location if provided
+                centerOnLocation?.let { location ->
+                    view.controller?.setZoom(16.0)
+                    view.controller?.setCenter(location)
                 }
                 
                 // Add user location marker if available
@@ -338,7 +400,9 @@ fun FullScreenMapPicker(
     val context = LocalContext.current
     var selectedLocation by remember { mutableStateOf<GeoPoint?>(null) }
     var selectedAddress by remember { mutableStateOf("") }
+    var searchQuery by remember { mutableStateOf("") }
     var isLoadingAddress by remember { mutableStateOf(false) }
+    var isSearchingAddress by remember { mutableStateOf(false) }
     var userLocation by remember { mutableStateOf<GeoPoint?>(null) }
     val coroutineScope = rememberCoroutineScope()
     
@@ -360,6 +424,32 @@ fun FullScreenMapPicker(
                 addresses?.firstOrNull()?.getAddressLine(0) ?: "Անհայտ հասցե"
             } catch (e: Exception) {
                 "Հասցեն հասանելի չէ"
+            }
+        }
+    }
+    
+    // Function to search for address and place marker
+    fun searchAddress() {
+        if (searchQuery.isNotBlank()) {
+            isSearchingAddress = true
+            coroutineScope.launch {
+                val coordinates = getCoordinatesFromAddress(context, searchQuery)
+                coordinates?.let { geoPoint ->
+                    selectedLocation = geoPoint
+                    onMapLocationUpdate?.invoke(geoPoint)
+                    
+                    // Get the formatted address for this location
+                    isLoadingAddress = true
+                    selectedAddress = getAddressFromCoordinates(geoPoint)
+                    isLoadingAddress = false
+                    
+                    // Clear search query after successful search to show the result better
+                    searchQuery = ""
+                } ?: run {
+                    // Handle case when address is not found
+                    selectedAddress = "Հասցեն չի գտնվել"
+                }
+                isSearchingAddress = false
             }
         }
     }
@@ -419,6 +509,61 @@ fun FullScreenMapPicker(
                     }
                 }
                 
+                // Address search field
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    colors = CardDefaults.cardColors(containerColor = TaxiWhite)
+                ) {
+                    OutlinedTextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        label = { Text("Փնտրել հասցե") },
+                        placeholder = { Text("Օրինակ: Հանրապետության հրապարակ") },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Default.Search,
+                                contentDescription = "Search",
+                                tint = TaxiYellow
+                            )
+                        },
+                        trailingIcon = {
+                            if (isSearchingAddress) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(20.dp),
+                                    color = TaxiYellow,
+                                    strokeWidth = 2.dp
+                                )
+                            } else {
+                                IconButton(
+                                    onClick = { searchAddress() },
+                                    enabled = searchQuery.isNotBlank()
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Search,
+                                        contentDescription = "Search Address",
+                                        tint = if (searchQuery.isNotBlank()) TaxiBlack else TaxiGray
+                                    )
+                                }
+                            }
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = TaxiYellow,
+                            unfocusedBorderColor = TaxiGray,
+                            focusedLabelColor = TaxiYellow
+                        ),
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                        keyboardActions = KeyboardActions(
+                            onSearch = { searchAddress() }
+                        )
+                    )
+                }
+                
                 // Selected address display
                 if (selectedAddress.isNotEmpty()) {
                     Card(
@@ -441,7 +586,10 @@ fun FullScreenMapPicker(
                     OSMMapView(
                         modifier = Modifier.fillMaxSize(),
                         initialLocation = userLocation ?: initialLocation,
-                        markers = selectedLocation?.let { listOf(it to selectedAddress) } ?: emptyList(),
+                        markers = selectedLocation?.let { location ->
+                            listOf(location to (selectedAddress.ifEmpty { "Ընտրված տեղ" }))
+                        } ?: emptyList(),
+                        centerOnLocation = selectedLocation, // Center on searched/selected location
                         onMapClick = { geoPoint ->
                             selectedLocation = geoPoint
                             isLoadingAddress = true
@@ -456,7 +604,7 @@ fun FullScreenMapPicker(
                             }
                         },
                         showLocationButton = true,
-                        centerOnUserLocation = userLocation != null
+                        centerOnUserLocation = userLocation != null && selectedLocation == null
                     )
                     
                     // Loading indicator
