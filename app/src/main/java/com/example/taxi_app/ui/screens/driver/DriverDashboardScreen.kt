@@ -365,7 +365,7 @@ private fun DriverTripCard(
                         color = TaxiBlack
                     )
                     Text(
-                        text = "${trip.seatsTotal - trip.seatsTaken} ուղևոր",
+                        text = "Ուղևորներ՝ ${trip.seatsTaken}/${trip.seatsTotal}",
                         fontSize = 12.sp,
                         color = TaxiGray
                     )

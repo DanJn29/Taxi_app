@@ -183,6 +183,7 @@ fun TaxiApp() {
                             },
                             onProfileClicked = { viewModel.navigateToScreen(Screen.ClientProfile) },
                             onHistoryClicked = { viewModel.navigateToScreen(Screen.ClientHistory) },
+                            onRequestsClicked = { viewModel.navigateToScreen(Screen.ClientRequests) },
                             onLogout = viewModel::logout,
                             viewModel = viewModel
                         )
@@ -194,6 +195,7 @@ fun TaxiApp() {
                             ClientBookingScreen(
                                 trip = trip,
                                 user = user,
+                                viewModel = viewModel,
                                 onBookTrip = { seats, payment, notes ->
                                     viewModel.bookTrip(trip.id, seats, payment, notes)
                                     viewModel.clearSelectedTrip()
@@ -220,6 +222,12 @@ fun TaxiApp() {
                             onBack = { viewModel.navigateToScreen(Screen.ClientHome) }
                         )
                     }
+                }
+                Screen.ClientRequests -> {
+                    ClientRequestsScreen(
+                        viewModel = viewModel,
+                        onBack = { viewModel.navigateToScreen(Screen.ClientHome) }
+                    )
                 }
                 Screen.ClientProfile -> {
                     currentUser?.let { user ->
@@ -258,6 +266,18 @@ fun TaxiApp() {
                         onClearError = viewModel::clearError,
                         onClearSuccess = viewModel::clearSuccessMessage
                     )
+                }
+                Screen.DriverVehicleSetup -> {
+                    currentUser?.let { driver ->
+                        DriverVehicleSetupScreen(
+                            user = driver,
+                            viewModel = viewModel,
+                            onVehicleRegistered = { 
+                                viewModel.navigateToScreen(Screen.DriverDashboard)
+                            },
+                            onBack = { viewModel.navigateToScreen(Screen.DriverLogin) }
+                        )
+                    }
                 }
                 Screen.DriverDashboard -> {
                     currentUser?.let { driver ->

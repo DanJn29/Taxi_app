@@ -12,11 +12,20 @@ import com.example.taxi_app.data.api.RegistrationRequest
 import com.example.taxi_app.data.api.CompanyRegistrationRequest
 import com.example.taxi_app.data.api.TripsResponse
 import com.example.taxi_app.data.api.TripData
+import com.example.taxi_app.data.api.VehicleResponse
+import com.example.taxi_app.data.api.BookingRequest
+import com.example.taxi_app.data.api.BookingResponse
+import com.example.taxi_app.data.api.RequestsResponse
+import com.example.taxi_app.data.api.RequestData
 import com.google.gson.Gson
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.Job
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.RequestBody.Companion.toRequestBody
 import org.osmdroid.util.GeoPoint
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -115,6 +124,10 @@ class TaxiViewModel : ViewModel() {
     private val _clientBookings = MutableStateFlow<List<Booking>>(emptyList())
     val clientBookings: StateFlow<List<Booking>> = _clientBookings.asStateFlow()
 
+    // Requests Data (for viewing user's booking requests)
+    private val _myRequests = MutableStateFlow<List<RequestData>>(emptyList())
+    val myRequests: StateFlow<List<RequestData>> = _myRequests.asStateFlow()
+
     // Driver Data
     private val _driverStats = MutableStateFlow(
         DriverStats(
@@ -130,6 +143,14 @@ class TaxiViewModel : ViewModel() {
 
     private val _driverTrips = MutableStateFlow<List<Trip>>(emptyList())
     val driverTrips: StateFlow<List<Trip>> = _driverTrips.asStateFlow()
+
+    // Auto-refresh mechanism
+    private var autoRefreshJob: Job? = null
+    private val _autoRefreshEnabled = MutableStateFlow(false)
+    val autoRefreshEnabled: StateFlow<Boolean> = _autoRefreshEnabled.asStateFlow()
+    
+    // Refresh interval in milliseconds (30 seconds)
+    private val refreshIntervalMs = 30_000L
 
     // Navigation
     private val _currentScreen = MutableStateFlow<Screen>(Screen.Dashboard)
@@ -191,9 +212,15 @@ class TaxiViewModel : ViewModel() {
                         // Load trips after successful login
                         loadTrips()
                         
+                        // Load user's requests
+                        loadMyRequests()
+                        
+                        // Start auto-refresh to keep data synchronized
+                        startAutoRefresh()
+                        
                         _currentScreen.value = Screen.ClientHome
                     } else {
-                        _errorMessage.value = loginResponse?.message ?: "Login failed"
+                        _errorMessage.value = "Մուտք չհաջողվեց: Խնդրում ենք նորից փորձել:"
                     }
                 } else {
                     // Handle API error response with specific messages
@@ -204,25 +231,25 @@ class TaxiViewModel : ViewModel() {
                         
                         when (errorResponse?.message) {
                             "email_unverified" -> {
-                                _errorMessage.value = "Your email address is not verified. Please check your email and click the verification link."
+                                _errorMessage.value = "Ձեր էլ. հասցեն չի հաստատվել: Խնդրում ենք ստուգել ձեր էլ. փոստը և սեղմել հաստատման հղումը:"
                             }
                             "invalid_credentials" -> {
-                                _errorMessage.value = "Invalid email or password. Please check your credentials and try again."
+                                _errorMessage.value = "Սխալ էլ. հասցե կամ գաղտնաբառ: Խնդրում ենք ստուգել ձեր տվյալները և նորից փորձել:"
                             }
                             "admin_approval_required" -> {
-                                _errorMessage.value = "Your account is pending admin approval. Please wait for approval before logging in."
+                                _errorMessage.value = "Ձեր հաշիվը սպասում է ադմինիստրատորի հաստատմանը: Խնդրում ենք սպասել հաստատմանը:"
                             }
                             else -> {
-                                _errorMessage.value = errorResponse?.message ?: "Login failed: ${response.message()}"
+                                _errorMessage.value = "Մուտք չհաջողվեց: Խնդրում ենք նորից փորձել:"
                             }
                         }
                     } catch (parseException: Exception) {
                         // Fallback if JSON parsing fails
-                        _errorMessage.value = "Login failed: ${response.message()}"
+                        _errorMessage.value = "Մուտք չհաջողվեց: Խնդրում ենք ստուգել ձեր ինտերնետ կապը և նորից փորձել:"
                     }
                 }
             } catch (e: Exception) {
-                _errorMessage.value = "Network error: ${e.message}"
+                _errorMessage.value = "Ինտերնետ կապի խնդիր: Խնդրում ենք ստուգել ձեր կապը և նորից փորձել:"
             } finally {
                 _isLoading.value = false
             }
@@ -389,6 +416,41 @@ class TaxiViewModel : ViewModel() {
         loadTrips()
     }
 
+    // Function to load user's requests
+    private fun loadMyRequests() {
+        viewModelScope.launch {
+            try {
+                val token = _authToken.value
+                if (token.isNullOrEmpty()) {
+                    android.util.Log.e("TaxiApp", "No auth token available for requests API")
+                    return@launch
+                }
+
+                android.util.Log.d("TaxiApp", "Loading my requests with token: $token")
+                val response = NetworkModule.apiService.getMyRequests("Bearer $token", 20)
+
+                if (response.isSuccessful) {
+                    val requestsResponse = response.body()
+                    requestsResponse?.let { apiResponse ->
+                        _myRequests.value = apiResponse.data
+                        android.util.Log.d("TaxiApp", "Successfully loaded ${apiResponse.data.size} requests")
+                    }
+                } else {
+                    android.util.Log.e("TaxiApp", "Failed to load requests: ${response.message()}")
+                    val errorBody = response.errorBody()?.string()
+                    android.util.Log.e("TaxiApp", "Error response body: $errorBody")
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("TaxiApp", "Error loading requests: ${e.message}")
+            }
+        }
+    }
+
+    // Public function to refresh requests
+    fun refreshMyRequests() {
+        loadMyRequests()
+    }
+
     fun registerClient(name: String, email: String, password: String) {
         viewModelScope.launch {
             try {
@@ -406,15 +468,15 @@ class TaxiViewModel : ViewModel() {
                 if (response.isSuccessful) {
                     val registrationResponse = response.body()
                     if (registrationResponse?.user != null) {
-                        _successMessage.value = "Registration successful! Please wait for admin approval."
+                        _successMessage.value = "Գրանցումը հաջողվեց: Խնդրում ենք սպասել ադմինիստրատորի հաստատմանը:"
                     } else {
-                        _errorMessage.value = registrationResponse?.message ?: "Registration failed"
+                        _errorMessage.value = "Գրանցում չհաջողվեց: Խնդրում ենք նորից փորձել:"
                     }
                 } else {
-                    _errorMessage.value = "Registration failed: ${response.message()}"
+                    _errorMessage.value = "Գրանցում չհաջողվեց: Խնդրում ենք ստուգել ձեր տվյալները և նորից փորձել:"
                 }
             } catch (e: Exception) {
-                _errorMessage.value = "Network error: ${e.message}"
+                _errorMessage.value = "Ինտերնետ կապի խնդիր: Խնդրում ենք ստուգել ձեր կապը և նորից փորձել:"
             } finally {
                 _isLoading.value = false
             }
@@ -543,9 +605,9 @@ class TaxiViewModel : ViewModel() {
                 if (response.isSuccessful) {
                     val registrationResponse = response.body()
                     if (registrationResponse?.user != null) {
-                        _successMessage.value = "Driver registration successful! Please wait until the admin approves your account."
+                        _successMessage.value = "Վարորդի գրանցումը հաջողվեց: Խնդրում ենք սպասել ադմինիստրատորի հաստատմանը:"
                     } else {
-                        _errorMessage.value = registrationResponse?.message ?: "Registration failed"
+                        _errorMessage.value = "Գրանցում չհաջողվեց: Խնդրում ենք նորից փորձել:"
                     }
                 } else {
                     // Handle API error response with specific messages
@@ -556,25 +618,25 @@ class TaxiViewModel : ViewModel() {
                         
                         when (errorResponse?.message) {
                             "email_unverified" -> {
-                                _errorMessage.value = "Your email address is not verified. Please check your email and click the verification link."
+                                _errorMessage.value = "Ձեր էլ. հասցեն չի հաստատվել: Խնդրում ենք ստուգել ձեր էլ. փոստը և սեղմել հաստատման հղումը:"
                             }
                             "invalid_credentials" -> {
-                                _errorMessage.value = "Invalid email or password. Please check your credentials and try again."
+                                _errorMessage.value = "Սխալ էլ. հասցե կամ գաղտնաբառ: Խնդրում ենք ստուգել ձեր տվյալները և նորից փորձել:"
                             }
                             "admin_approval_required" -> {
-                                _errorMessage.value = "Your account is pending admin approval. Please wait for approval before logging in."
+                                _errorMessage.value = "Ձեր հաշիվը սպասում է ադմինիստրատորի հաստատմանը: Խնդրում ենք սպասել հաստատմանը:"
                             }
                             else -> {
-                                _errorMessage.value = errorResponse?.message ?: "Registration failed: ${response.message()}"
+                                _errorMessage.value = "Գրանցում չհաջողվեց: Խնդրում ենք նորից փորձել:"
                             }
                         }
                     } catch (parseException: Exception) {
                         // Fallback if JSON parsing fails
-                        _errorMessage.value = "Registration failed: ${response.message()}"
+                        _errorMessage.value = "Գրանցում չհաջողվեց: Խնդրում ենք ստուգել ձեր ինտերնետ կապը և նորից փորձել:"
                     }
                 }
             } catch (e: Exception) {
-                _errorMessage.value = "Network error: ${e.message}"
+                _errorMessage.value = "Ինտերնետ կապի խնդիր: Խնդրում ենք ստուգել ձեր կապը և նորից փորձել:"
             } finally {
                 _isLoading.value = false
             }
@@ -599,7 +661,7 @@ class TaxiViewModel : ViewModel() {
 
                 if (response.isSuccessful) {
                     val registrationResponse = response.body()
-                    _successMessage.value = registrationResponse?.message ?: "Company registration successful! Please check your email for verification."
+                    _successMessage.value = "Կազմակերպության գրանցումը հաջողվեց: Խնդրում ենք ստուգել ձեր էլ. փոստը հաստատման համար:"
                 } else {
                     // Handle API error response with specific messages
                     try {
@@ -609,25 +671,25 @@ class TaxiViewModel : ViewModel() {
                         
                         when (errorResponse?.message) {
                             "email_unverified" -> {
-                                _errorMessage.value = "Your email address is not verified. Please check your email and click the verification link."
+                                _errorMessage.value = "Ձեր էլ. հասցեն չի հաստատվել: Խնդրում ենք ստուգել ձեր էլ. փոստը և սեղմել հաստատման հղումը:"
                             }
                             "invalid_credentials" -> {
-                                _errorMessage.value = "Invalid email or password. Please check your credentials and try again."
+                                _errorMessage.value = "Սխալ էլ. հասցե կամ գաղտնաբառ: Խնդրում ենք ստուգել ձեր տվյալները և նորից փորձել:"
                             }
                             "admin_approval_required" -> {
-                                _errorMessage.value = "Your account is pending admin approval. Please wait for approval before logging in."
+                                _errorMessage.value = "Ձեր հաշիվը սպասում է ադմինիստրատորի հաստատմանը: Խնդրում ենք սպասել հաստատմանը:"
                             }
                             else -> {
-                                _errorMessage.value = errorResponse?.message ?: "Registration failed: ${response.message()}"
+                                _errorMessage.value = "Գրանցում չհաջողվեց: Խնդրում ենք նորից փորձել:"
                             }
                         }
                     } catch (parseException: Exception) {
                         // Fallback if JSON parsing fails
-                        _errorMessage.value = "Registration failed: ${response.message()}"
+                        _errorMessage.value = "Գրանցում չհաջողվեց: Խնդրում ենք ստուգել ձեր ինտերնետ կապը և նորից փորձել:"
                     }
                 }
             } catch (e: Exception) {
-                _errorMessage.value = "Network error: ${e.message}"
+                _errorMessage.value = "Ինտերնետ կապի խնդիր: Խնդրում ենք ստուգել ձեր կապը և նորից փորձել:"
             } finally {
                 _isLoading.value = false
             }
@@ -682,9 +744,13 @@ class TaxiViewModel : ViewModel() {
                             rating = 0f,
                             totalTrips = 0
                         )
+                        
+                        // Start auto-refresh to keep data synchronized
+                        startAutoRefresh()
+                        
                         _currentScreen.value = Screen.Dashboard
                     } else {
-                        _errorMessage.value = loginResponse?.message ?: "Login failed"
+                        _errorMessage.value = "Մուտք չհաջողվեց: Խնդրում ենք նորից փորձել:"
                     }
                 } else {
                     // Handle API error response with specific messages
@@ -695,25 +761,25 @@ class TaxiViewModel : ViewModel() {
                         
                         when (errorResponse?.message) {
                             "email_unverified" -> {
-                                _errorMessage.value = "Your email address is not verified. Please check your email and click the verification link."
+                                _errorMessage.value = "Ձեր էլ. հասցեն չի հաստատվել: Խնդրում ենք ստուգել ձեր էլ. փոստը և սեղմել հաստատման հղումը:"
                             }
                             "invalid_credentials" -> {
-                                _errorMessage.value = "Invalid email or password. Please check your credentials and try again."
+                                _errorMessage.value = "Սխալ էլ. հասցե կամ գաղտնաբառ: Խնդրում ենք ստուգել ձեր տվյալները և նորից փորձել:"
                             }
                             "admin_approval_required" -> {
-                                _errorMessage.value = "Your account is pending admin approval. Please wait for approval before logging in."
+                                _errorMessage.value = "Ձեր հաշիվը սպասում է ադմինիստրատորի հաստատմանը: Խնդրում ենք սպասել հաստատմանը:"
                             }
                             else -> {
-                                _errorMessage.value = errorResponse?.message ?: "Login failed: ${response.message()}"
+                                _errorMessage.value = "Մուտք չհաջողվեց: Խնդրում ենք նորից փորձել:"
                             }
                         }
                     } catch (parseException: Exception) {
                         // Fallback if JSON parsing fails
-                        _errorMessage.value = "Login failed: ${response.message()}"
+                        _errorMessage.value = "Մուտք չհաջողվեց: Խնդրում ենք ստուգել ձեր ինտերնետ կապը և նորից փորձել:"
                     }
                 }
             } catch (e: Exception) {
-                _errorMessage.value = "Network error: ${e.message}"
+                _errorMessage.value = "Ինտերնետ կապի խնդիր: Խնդրում ենք ստուգել ձեր կապը և նորից փորձել:"
             } finally {
                 _isLoading.value = false
             }
@@ -872,18 +938,94 @@ class TaxiViewModel : ViewModel() {
     }
 
     // Client functions
-    fun bookTrip(tripId: String, seats: Int, payment: String, notes: String) {
+    fun bookTrip(tripId: String, seats: Int, payment: String, description: String) {
         viewModelScope.launch {
-            val trip = _trips.value.find { it.id == tripId }
-            if (trip != null && trip.seatsTaken + seats <= trip.seatsTotal) {
-                _trips.value = _trips.value.map { t ->
-                    if (t.id == tripId) {
-                        t.copy(seatsTaken = t.seatsTaken + seats)
+            try {
+                _isLoading.value = true
+                _errorMessage.value = null
+                _successMessage.value = null
+                
+                val token = _authToken.value
+                if (token == null) {
+                    _errorMessage.value = "Փորձեք նորից մուտք գործել"
+                    _isLoading.value = false
+                    return@launch
+                }
+
+                val bookingRequest = com.example.taxi_app.data.api.BookingRequest(
+                    description = description,
+                    seats = seats,
+                    payment = payment
+                )
+
+                android.util.Log.d("TaxiApp", "Booking trip with: tripId=$tripId, seats=$seats, payment=$payment")
+                android.util.Log.d("TaxiApp", "Description: $description")
+                android.util.Log.d("TaxiApp", "Authorization token: Bearer $token")
+                android.util.Log.d("TaxiApp", "Equivalent curl command:")
+                android.util.Log.d("TaxiApp", "curl -X POST http://api.tamojni.com/api/trips/$tripId/requests \\")
+                android.util.Log.d("TaxiApp", "  -H \"Authorization: Bearer $token\" \\")
+                android.util.Log.d("TaxiApp", "  -H \"Content-Type: application/json\" \\")
+                android.util.Log.d("TaxiApp", "  -d '{\"description\":\"$description\",\"seats\":$seats,\"payment\":\"$payment\"}'")
+
+                val response = NetworkModule.apiService.bookTrip(
+                    token = "Bearer $token",
+                    tripId = tripId,
+                    request = bookingRequest
+                )
+
+                android.util.Log.d("TaxiApp", "Raw booking API response code: ${response.code()}")
+                android.util.Log.d("TaxiApp", "Raw booking API response message: ${response.message()}")
+
+                if (response.isSuccessful) {
+                    val bookingResponse = response.body()
+                    android.util.Log.d("TaxiApp", "Booking API response: $bookingResponse")
+                    
+                    // Check if response indicates success
+                    val isSuccess = when {
+                        bookingResponse?.success == true -> true
+                        bookingResponse?.status == "success" -> true
+                        bookingResponse?.request != null -> true
+                        bookingResponse?.data != null -> true
+                        bookingResponse?.message?.contains("success", ignoreCase = true) == true -> true
+                        bookingResponse?.message?.contains("created", ignoreCase = true) == true -> true
+                        bookingResponse?.message?.contains("booked", ignoreCase = true) == true -> true
+                        bookingResponse?.errors == null && response.code() in 200..299 -> true
+                        bookingResponse == null && response.code() in 200..299 -> true
+                        else -> false
+                    }
+                    
+                    if (isSuccess) {
+                        _successMessage.value = "Գրանցումը հաջողությամբ ուղարկվեց"
+                        android.util.Log.d("TaxiApp", "Trip booked successfully")
+                        
+                        // Refresh trips data from API to get updated seat counts
+                        loadTrips()
+                        
+                        // Refresh requests data to show the new booking request
+                        loadMyRequests()
                     } else {
-                        t
+                        _errorMessage.value = bookingResponse?.message ?: "Գրանցումը չհաջողվեց"
+                        android.util.Log.w("TaxiApp", "Trip booking failed: ${bookingResponse?.message}")
+                        android.util.Log.w("TaxiApp", "Errors: ${bookingResponse?.errors}")
+                    }
+                } else {
+                    android.util.Log.e("TaxiApp", "Trip booking API failed with code: ${response.code()}")
+                    val errorBody = response.errorBody()?.string()
+                    android.util.Log.e("TaxiApp", "Error response body: $errorBody")
+                    _errorMessage.value = when (response.code()) {
+                        400 -> "Սխալ տվյալներ: Ստուգեք մուտքագրված տեղեկությունները"
+                        401 -> "Թույլտվության խնդիր: Խնդրում ենք նորից մուտք գործել"
+                        403 -> "Արգելված է: Ինչ-որ բան սխալ է"
+                        404 -> "Ճանապարհորդությունը չի գտնվել"
+                        422 -> "Տվյալների վավերացման սխալ"
+                        else -> "Սերվերի խնդիր: Խնդրում ենք նորից փորձել"
                     }
                 }
-                updateAvailableTrips()
+            } catch (e: Exception) {
+                _errorMessage.value = "Ինտերնետ կապի խնդիր: Ստուգեք ձեր կապը"
+                android.util.Log.e("TaxiApp", "Trip booking error: ${e.message}", e)
+            } finally {
+                _isLoading.value = false
             }
         }
     }
@@ -915,9 +1057,24 @@ class TaxiViewModel : ViewModel() {
                             rating = 0f,
                             totalTrips = 0
                         )
-                        _currentScreen.value = Screen.DriverDashboard
+                        
+                        // Check if this is a first-time login (user needs to register vehicle)
+                        // For testing purposes, always redirect to vehicle setup
+                        // In production, you would check the API response for existing vehicle data
+                        val hasVehicle = false // Always false for now to test vehicle registration
+                        
+                        // Start auto-refresh to keep data synchronized
+                        startAutoRefresh()
+                        
+                        if (hasVehicle) {
+                            _currentScreen.value = Screen.DriverDashboard
+                        } else {
+                            // First time login or no vehicle registered - redirect to vehicle setup
+                            android.util.Log.d("TaxiApp", "Redirecting to vehicle setup screen")
+                            _currentScreen.value = Screen.DriverVehicleSetup
+                        }
                     } else {
-                        _errorMessage.value = loginResponse?.message ?: "Login failed"
+                        _errorMessage.value = "Մուտք չհաջողվեց: Խնդրում ենք նորից փորձել:"
                     }
                 } else {
                     // Handle API error response with specific messages
@@ -928,25 +1085,25 @@ class TaxiViewModel : ViewModel() {
                         
                         when (errorResponse?.message) {
                             "email_unverified" -> {
-                                _errorMessage.value = "Your email address is not verified. Please check your email and click the verification link."
+                                _errorMessage.value = "Ձեր էլ. հասցեն չի հաստատվել: Խնդրում ենք ստուգել ձեր էլ. փոստը և սեղմել հաստատման հղումը:"
                             }
                             "invalid_credentials" -> {
-                                _errorMessage.value = "Invalid email or password. Please check your credentials and try again."
+                                _errorMessage.value = "Սխալ էլ. հասցե կամ գաղտնաբառ: Խնդրում ենք ստուգել ձեր տվյալները և նորից փորձել:"
                             }
                             "admin_approval_required" -> {
-                                _errorMessage.value = "Your account is pending admin approval. Please wait for approval before logging in."
+                                _errorMessage.value = "Ձեր հաշիվը սպասում է ադմինիստրատորի հաստատմանը: Խնդրում ենք սպասել հաստատմանը:"
                             }
                             else -> {
-                                _errorMessage.value = errorResponse?.message ?: "Login failed: ${response.message()}"
+                                _errorMessage.value = "Մուտք չհաջողվեց: Խնդրում ենք նորից փորձել:"
                             }
                         }
                     } catch (parseException: Exception) {
                         // Fallback if JSON parsing fails
-                        _errorMessage.value = "Login failed: ${response.message()}"
+                        _errorMessage.value = "Մուտք չհաջողվեց: Խնդրում ենք ստուգել ձեր ինտերնետ կապը և նորից փորձել:"
                     }
                 }
             } catch (e: Exception) {
-                _errorMessage.value = "Network error: ${e.message}"
+                _errorMessage.value = "Ինտերնետ կապի խնդիր: Խնդրում ենք ստուգել ձեր կապը և նորից փորձել:"
             } finally {
                 _isLoading.value = false
             }
@@ -963,6 +1120,145 @@ class TaxiViewModel : ViewModel() {
         viewModelScope.launch {
             // Toggle driver availability status
         }
+    }
+
+    // Vehicle registration function
+    fun registerVehicle(
+        brand: String,
+        model: String,
+        seats: Int,
+        color: String,
+        plate: String,
+        photoUri: android.net.Uri?,
+        context: android.content.Context? = null
+    ) {
+        viewModelScope.launch {
+            try {
+                _isLoading.value = true
+                _errorMessage.value = null
+                _successMessage.value = null
+                
+                val token = _authToken.value
+                if (token == null) {
+                    _errorMessage.value = "Փորձեք նորից մուտք գործել"
+                    _isLoading.value = false
+                    return@launch
+                }
+
+                // Prepare request body parts
+                val brandBody = brand.toRequestBody("text/plain".toMediaTypeOrNull())
+                val modelBody = model.toRequestBody("text/plain".toMediaTypeOrNull())
+                val seatsBody = seats.toString().toRequestBody("text/plain".toMediaTypeOrNull())
+                val colorBody = color.toRequestBody("text/plain".toMediaTypeOrNull())
+                val plateBody = plate.toRequestBody("text/plain".toMediaTypeOrNull())
+                
+                // Prepare photo part if available
+                var photoPart: okhttp3.MultipartBody.Part? = null
+                if (photoUri != null) {
+                    try {
+                        // Convert Uri to file (simplified approach)
+                        // In production, you'd want more robust file handling
+                        val inputStream = context?.contentResolver?.openInputStream(photoUri)
+                        if (inputStream != null) {
+                            val bytes = inputStream.readBytes()
+                            val photoBody = bytes.toRequestBody("image/*".toMediaTypeOrNull())
+                            photoPart = okhttp3.MultipartBody.Part.createFormData("photo", "car_photo.jpg", photoBody)
+                            inputStream.close()
+                            android.util.Log.d("TaxiApp", "Photo prepared for upload")
+                        }
+                    } catch (e: Exception) {
+                        android.util.Log.w("TaxiApp", "Failed to prepare photo for upload: ${e.message}")
+                        // Continue without photo if there's an error
+                    }
+                }
+
+                android.util.Log.d("TaxiApp", "Calling vehicle registration API with: brand=$brand, model=$model, seats=$seats, color=$color, plate=$plate")
+                android.util.Log.d("TaxiApp", "Authorization token: Bearer $token")
+                android.util.Log.d("TaxiApp", "Equivalent curl command:")
+                android.util.Log.d("TaxiApp", "curl -X POST http://api.tamojni.com/api/driver/vehicle \\")
+                android.util.Log.d("TaxiApp", "  -H \"Authorization: Bearer $token\" \\")
+                android.util.Log.d("TaxiApp", "  -F brand=$brand \\")
+                android.util.Log.d("TaxiApp", "  -F model=$model \\")
+                android.util.Log.d("TaxiApp", "  -F seats=$seats \\")
+                android.util.Log.d("TaxiApp", "  -F color=$color \\")
+                android.util.Log.d("TaxiApp", "  -F plate=\"$plate\"")
+
+                val response = NetworkModule.apiService.registerVehicle(
+                    token = "Bearer $token",
+                    brand = brandBody,
+                    model = modelBody,
+                    seats = seatsBody,
+                    color = colorBody,
+                    plate = plateBody,
+                    photo = photoPart
+                )
+
+                android.util.Log.d("TaxiApp", "Raw API response code: ${response.code()}")
+                android.util.Log.d("TaxiApp", "Raw API response message: ${response.message()}")
+                android.util.Log.d("TaxiApp", "Raw API response headers: ${response.headers()}")
+                
+                // Log raw response body for debugging
+                val rawBody = response.body()
+                android.util.Log.d("TaxiApp", "Raw response body type: ${rawBody?.javaClass?.name}")
+
+                if (response.isSuccessful) {
+                    val vehicleResponse = response.body()
+                    android.util.Log.d("TaxiApp", "Vehicle registration API response: $vehicleResponse")
+                    android.util.Log.d("TaxiApp", "Response code: ${response.code()}")
+                    
+                    // Check if response indicates success with multiple criteria
+                    val isSuccess = when {
+                        // Check for explicit success indicators
+                        vehicleResponse?.success == true -> true
+                        vehicleResponse?.status == "success" -> true
+                        vehicleResponse?.vehicle != null -> true
+                        vehicleResponse?.data != null -> true
+                        
+                        // Check for success messages
+                        vehicleResponse?.message?.contains("success", ignoreCase = true) == true -> true
+                        vehicleResponse?.message?.contains("created", ignoreCase = true) == true -> true
+                        vehicleResponse?.message?.contains("registered", ignoreCase = true) == true -> true
+                        
+                        // Check if no errors and good response code
+                        vehicleResponse?.errors == null && response.code() in 200..299 -> true
+                        
+                        // If response body is null/empty but status code is success, assume success
+                        vehicleResponse == null && response.code() in 200..299 -> true
+                        
+                        else -> false
+                    }
+                    
+                    if (isSuccess) {
+                        _successMessage.value = "Ավտոմեքենան հաջողությամբ գրանցվեց"
+                        android.util.Log.d("TaxiApp", "Vehicle registered successfully")
+                        android.util.Log.d("TaxiApp", "Success criteria met - vehicle: ${vehicleResponse?.vehicle}, message: ${vehicleResponse?.message}")
+                    } else {
+                        _errorMessage.value = vehicleResponse?.message ?: "Ավտոմեքենայի գրանցումը չհաջողվեց"
+                        android.util.Log.w("TaxiApp", "Vehicle registration failed: ${vehicleResponse?.message}")
+                        android.util.Log.w("TaxiApp", "Errors: ${vehicleResponse?.errors}")
+                    }
+                } else {
+                    android.util.Log.e("TaxiApp", "Vehicle registration API failed with code: ${response.code()}")
+                    val errorBody = response.errorBody()?.string()
+                    android.util.Log.e("TaxiApp", "Error response body: $errorBody")
+                    _errorMessage.value = when (response.code()) {
+                        400 -> "Սխալ տվյալներ: Ստուգեք մուտքագրված տեղեկությունները"
+                        401 -> "Թույլտվության խնդիր: Խնդրում ենք նորից մուտք գործել"
+                        422 -> "Տվյալների վավերացման սխալ"
+                        else -> "Սերվերի խնդիր: Խնդրում ենք նորից փորձել"
+                    }
+                }
+            } catch (e: Exception) {
+                _errorMessage.value = "Ինտերնետ կապի խնդիր: Ստուգեք ձեր կապը"
+                android.util.Log.e("TaxiApp", "Vehicle registration error: ${e.message}", e)
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
+
+    fun setErrorMessage(message: String) {
+        _errorMessage.value = message
     }
 
     // General functions
@@ -990,6 +1286,10 @@ class TaxiViewModel : ViewModel() {
             
             // Always clear local state regardless of API call result
             android.util.Log.d("TaxiApp", "Clearing local state for logout")
+            
+            // Stop auto-refresh
+            stopAutoRefresh()
+            
             _currentUser.value = null
             _appMode.value = null
             _currentMapLocation.value = null
@@ -1000,5 +1300,53 @@ class TaxiViewModel : ViewModel() {
 
     fun clearError() {
         _errorMessage.value = null
+    }
+
+    // Auto-refresh functions
+    fun startAutoRefresh() {
+        android.util.Log.d("TaxiApp", "Starting auto-refresh")
+        _autoRefreshEnabled.value = true
+        
+        autoRefreshJob?.cancel() // Cancel any existing refresh job
+        autoRefreshJob = viewModelScope.launch {
+            while (_autoRefreshEnabled.value && _authToken.value != null) {
+                delay(refreshIntervalMs)
+                if (_autoRefreshEnabled.value && _authToken.value != null) {
+                    android.util.Log.d("TaxiApp", "Auto-refreshing data")
+                    refreshData()
+                }
+            }
+        }
+    }
+
+    fun stopAutoRefresh() {
+        android.util.Log.d("TaxiApp", "Stopping auto-refresh")
+        _autoRefreshEnabled.value = false
+        autoRefreshJob?.cancel()
+        autoRefreshJob = null
+    }
+
+    private fun refreshData() {
+        // Refresh trips data for all users
+        loadTrips()
+        
+        // Refresh requests data for clients
+        if (_currentUser.value?.role == "client") {
+            loadMyRequests()
+        }
+        
+        // Additional refresh calls can be added here based on user role if needed
+        android.util.Log.d("TaxiApp", "Data refreshed for user role: ${_currentUser.value?.role}")
+    }
+
+    // Manual refresh function that can be called by UI
+    fun refreshDataManually() {
+        android.util.Log.d("TaxiApp", "Manual data refresh requested")
+        refreshData()
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        stopAutoRefresh()
     }
 }

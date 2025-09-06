@@ -123,6 +123,15 @@ data class PaymentMethod(
     val isDefault: Boolean
 )
 
+// Vehicle registration request
+data class VehicleRequest(
+    val brand: String,
+    val model: String,
+    val seats: Int,
+    val color: String,
+    val plate: String
+)
+
 // Navigation destinations
 sealed class Screen(val route: String) {
     // Company screens
@@ -141,11 +150,13 @@ sealed class Screen(val route: String) {
     object ClientBooking : Screen("client_booking")
     object ClientTracking : Screen("client_tracking")
     object ClientHistory : Screen("client_history")
+    object ClientRequests : Screen("client_requests")
     object ClientProfile : Screen("client_profile")
     
     // Driver screens
     object DriverLogin : Screen("driver_login")
     object DriverRegister : Screen("driver_register")
+    object DriverVehicleSetup : Screen("driver_vehicle_setup")
     object DriverDashboard : Screen("driver_dashboard")
     object DriverTrips : Screen("driver_trips")
     object DriverEarnings : Screen("driver_earnings")

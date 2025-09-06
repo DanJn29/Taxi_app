@@ -108,3 +108,80 @@ data class TripLinks(
     val prev: String?,
     val next: String?
 )
+
+// Vehicle Registration Response
+data class VehicleResponse(
+    val message: String? = null,
+    val vehicle: VehicleData? = null,
+    val errors: Map<String, List<String>>? = null,
+    val success: Boolean? = null,
+    val status: String? = null,
+    val data: VehicleData? = null // Some APIs return data instead of vehicle
+)
+
+// Booking Request and Response
+data class BookingRequest(
+    val description: String,
+    val seats: Int,
+    val payment: String // "cash" or "card"
+)
+
+data class BookingResponse(
+    val message: String? = null,
+    val request: BookingData? = null,
+    val errors: Map<String, List<String>>? = null,
+    val success: Boolean? = null,
+    val status: String? = null,
+    val data: BookingData? = null
+)
+
+data class BookingData(
+    val id: String,
+    val trip_id: String,
+    val user_id: String,
+    val description: String,
+    val seats: Int,
+    val payment: String,
+    val status: String = "pending",
+    val created_at: String? = null
+)
+
+// Requests API Response Models
+data class RequestsResponse(
+    val data: List<RequestData>,
+    val meta: RequestsMeta,
+    val links: RequestsLinks
+)
+
+data class RequestData(
+    val id: Int,
+    val status: String,
+    val payment: String,
+    val seats: Int,
+    val passenger_name: String,
+    val phone: String,
+    val trip: RequestTripData
+)
+
+data class RequestTripData(
+    val id: Int,
+    val from_addr: String,
+    val to_addr: String,
+    val departure_at: String,
+    val price_amd: Int,
+    val driver: String
+)
+
+data class RequestsMeta(
+    val current_page: Int,
+    val last_page: Int,
+    val per_page: Int,
+    val total: Int
+)
+
+data class RequestsLinks(
+    val first: String?,
+    val last: String?,
+    val prev: String?,
+    val next: String?
+)

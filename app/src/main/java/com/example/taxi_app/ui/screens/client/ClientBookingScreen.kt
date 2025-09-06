@@ -21,6 +21,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import com.example.taxi_app.data.*
 import com.example.taxi_app.ui.components.*
 import com.example.taxi_app.ui.theme.*
+import com.example.taxi_app.viewmodel.TaxiViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.osmdroid.config.Configuration
@@ -38,6 +39,7 @@ import org.json.JSONObject
 fun ClientBookingScreen(
     trip: Trip,
     user: User,
+    viewModel: TaxiViewModel,
     onBookTrip: (Int, String, String) -> Unit,
     onBack: () -> Unit
 ) {
@@ -45,6 +47,25 @@ fun ClientBookingScreen(
     var selectedPayment by remember { mutableStateOf("cash") }
     var notes by remember { mutableStateOf("") }
     var showConfirmDialog by remember { mutableStateOf(false) }
+    var isBooking by remember { mutableStateOf(false) }
+
+    val errorMessage by viewModel.errorMessage.collectAsState()
+    val successMessage by viewModel.successMessage.collectAsState()
+
+    // Handle booking result
+    LaunchedEffect(successMessage) {
+        if (successMessage?.isNotEmpty() == true) {
+            isBooking = false
+            showConfirmDialog = false
+            onBack() // Go back after successful booking
+        }
+    }
+
+    LaunchedEffect(errorMessage) {
+        if (errorMessage?.isNotEmpty() == true) {
+            isBooking = false
+        }
+    }
 
     val availableSeats = trip.seatsTotal - trip.seatsTaken
     val totalPrice = trip.priceAmd * selectedSeats

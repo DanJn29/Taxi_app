@@ -1,6 +1,7 @@
 package com.example.taxi_app.ui.screens.client
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -11,6 +12,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -27,6 +29,7 @@ fun ClientHomeScreen(
     onTripSelected: (Trip) -> Unit,
     onProfileClicked: () -> Unit,
     onHistoryClicked: () -> Unit,
+    onRequestsClicked: () -> Unit,
     onLogout: () -> Unit,
     viewModel: TaxiViewModel? = null
 ) {
@@ -89,6 +92,13 @@ fun ClientHomeScreen(
                     Icon(
                         imageVector = Icons.Default.History,
                         contentDescription = "Պատմություն",
+                        tint = TaxiBlack
+                    )
+                }
+                IconButton(onClick = onRequestsClicked) {
+                    Icon(
+                        imageVector = Icons.Default.Assignment,
+                        contentDescription = "Հայտեր",
                         tint = TaxiBlack
                     )
                 }
@@ -323,7 +333,7 @@ private fun TripCard(
                         color = TaxiBlack
                     )
                     Text(
-                        text = "${trip.seatsTotal - trip.seatsTaken} տեղ",
+                        text = "Տեղեր՝ ${trip.seatsTaken}/${trip.seatsTotal}",
                         fontSize = 12.sp,
                         color = TaxiGray
                     )
@@ -440,14 +450,16 @@ private fun FilterDialog(
     viewModel: TaxiViewModel?,
     onDismiss: () -> Unit
 ) {
-    val filterMinPrice = viewModel?.filterMinPrice?.collectAsState()?.value
     val filterMaxPrice = viewModel?.filterMaxPrice?.collectAsState()?.value
     val filterMinSeats = viewModel?.filterMinSeats?.collectAsState()?.value
     val filterPaymentMethods = viewModel?.filterPaymentMethods?.collectAsState()?.value ?: emptyList()
     
-    var tempMinPrice by remember { mutableStateOf(filterMinPrice?.toString() ?: "") }
-    var tempMaxPrice by remember { mutableStateOf(filterMaxPrice?.toString() ?: "") }
-    var tempMinSeats by remember { mutableStateOf(filterMinSeats?.toString() ?: "") }
+    // Max price state for slider (in AMD)
+    val maxPriceLimit = 50000f // Maximum price limit
+    var maxPrice by remember { 
+        mutableStateOf(filterMaxPrice?.toFloat() ?: 0f) // Start from 0 by default
+    }
+    var tempMinSeats by remember { mutableStateOf(filterMinSeats ?: 1) }
     var tempPaymentMethods by remember { mutableStateOf(filterPaymentMethods) }
 
     AlertDialog(
@@ -467,38 +479,58 @@ private fun FilterDialog(
             ) {
                 // Price Range
                 Text(
-                    text = "Գնային շրջակ (AMD)",
+                    text = "Առավելագույն գին (AMD)",
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Medium,
                     color = TaxiBlack
                 )
                 
+                // Max price display
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    OutlinedTextField(
-                        value = tempMinPrice,
-                        onValueChange = { tempMinPrice = it },
-                        label = { Text("Նվազագույնը") },
-                        modifier = Modifier.weight(1f),
-                        singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = TaxiBlue,
-                            focusedLabelColor = TaxiBlue
-                        )
+                    Text(
+                        text = "0 AMD",
+                        fontSize = 14.sp,
+                        color = TaxiGray
                     )
-                    
-                    OutlinedTextField(
-                        value = tempMaxPrice,
-                        onValueChange = { tempMaxPrice = it },
-                        label = { Text("Առավելագույնը") },
-                        modifier = Modifier.weight(1f),
-                        singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = TaxiBlue,
-                            focusedLabelColor = TaxiBlue
-                        )
+                    Text(
+                        text = "${maxPrice.toInt()} AMD",
+                        fontSize = 16.sp,
+                        color = TaxiBlue,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+                
+                // Max Price Slider
+                Slider(
+                    value = maxPrice,
+                    onValueChange = { maxPrice = it },
+                    valueRange = 0f..maxPriceLimit,
+                    steps = 49, // Creates 50 price points (1000 AMD steps)
+                    colors = SliderDefaults.colors(
+                        thumbColor = TaxiBlue,
+                        activeTrackColor = TaxiBlue,
+                        inactiveTrackColor = TaxiBlue.copy(alpha = 0.3f)
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                
+                // Min/Max labels
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = "0 AMD",
+                        fontSize = 12.sp,
+                        color = TaxiGray
+                    )
+                    Text(
+                        text = "${maxPriceLimit.toInt()} AMD",
+                        fontSize = 12.sp,
+                        color = TaxiGray
                     )
                 }
                 
@@ -510,17 +542,81 @@ private fun FilterDialog(
                     color = TaxiBlack
                 )
                 
-                OutlinedTextField(
-                    value = tempMinSeats,
-                    onValueChange = { tempMinSeats = it },
-                    label = { Text("Տեղերի քանակ") },
+                // Seats counter with +/- buttons
+                Row(
                     modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = TaxiBlue,
-                        focusedLabelColor = TaxiBlue
-                    )
-                )
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Decrease button
+                    OutlinedButton(
+                        onClick = { 
+                            if (tempMinSeats > 1) tempMinSeats -= 1 
+                        },
+                        enabled = tempMinSeats > 1,
+                        modifier = Modifier.size(48.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = if (tempMinSeats > 1) TaxiBlue else TaxiGray,
+                            disabledContentColor = TaxiGray.copy(alpha = 0.5f)
+                        ),
+                        border = BorderStroke(
+                            width = 2.dp, 
+                            color = if (tempMinSeats > 1) TaxiBlue else TaxiGray.copy(alpha = 0.5f)
+                        ),
+                        contentPadding = PaddingValues(0.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Remove,
+                            contentDescription = "Նվազեցնել",
+                            modifier = Modifier.size(28.dp),
+                            tint = if (tempMinSeats > 1) TaxiBlue else TaxiGray.copy(alpha = 0.5f)
+                        )
+                    }
+                    
+                    // Seats display
+                    Card(
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = TaxiBlue.copy(alpha = 0.1f)
+                        ),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text(
+                            text = "$tempMinSeats",
+                            fontSize = 24.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = TaxiBlue,
+                            modifier = Modifier.padding(horizontal = 28.dp, vertical = 12.dp)
+                        )
+                    }
+                    
+                    // Increase button
+                    OutlinedButton(
+                        onClick = { 
+                            if (tempMinSeats < 8) tempMinSeats += 1 
+                        },
+                        enabled = tempMinSeats < 8,
+                        modifier = Modifier.size(48.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = if (tempMinSeats < 8) TaxiBlue else TaxiGray,
+                            disabledContentColor = TaxiGray.copy(alpha = 0.5f)
+                        ),
+                        border = BorderStroke(
+                            width = 2.dp, 
+                            color = if (tempMinSeats < 8) TaxiBlue else TaxiGray.copy(alpha = 0.5f)
+                        ),
+                        contentPadding = PaddingValues(0.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = "Ավելացնել",
+                            modifier = Modifier.size(28.dp),
+                            tint = if (tempMinSeats < 8) TaxiBlue else TaxiGray.copy(alpha = 0.5f)
+                        )
+                    }
+                }
                 
                 // Payment Methods
                 Text(
@@ -530,32 +626,118 @@ private fun FilterDialog(
                     color = TaxiBlack
                 )
                 
-                val paymentOptions = listOf("cash" to "Կանխիկ", "card" to "Քարտ")
-                
-                paymentOptions.forEach { (value, label) ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Checkbox(
-                            checked = tempPaymentMethods.contains(value),
-                            onCheckedChange = { isChecked ->
-                                tempPaymentMethods = if (isChecked) {
-                                    tempPaymentMethods + value
-                                } else {
-                                    tempPaymentMethods - value
-                                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    // Cash button
+                    OutlinedButton(
+                        onClick = {
+                            tempPaymentMethods = if (tempPaymentMethods.contains("cash")) {
+                                tempPaymentMethods - "cash"
+                            } else {
+                                tempPaymentMethods + "cash"
+                            }
+                        },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            containerColor = if (tempPaymentMethods.contains("cash")) {
+                                TaxiBlue.copy(alpha = 0.1f)
+                            } else {
+                                Color.Transparent
                             },
-                            colors = CheckboxDefaults.colors(
-                                checkedColor = TaxiBlue
+                            contentColor = if (tempPaymentMethods.contains("cash")) {
+                                TaxiBlue
+                            } else {
+                                TaxiGray
+                            }
+                        ),
+                        border = BorderStroke(
+                            width = 1.dp,
+                            color = if (tempPaymentMethods.contains("cash")) {
+                                TaxiBlue
+                            } else {
+                                TaxiGray.copy(alpha = 0.3f)
+                            }
+                        ),
+                        contentPadding = PaddingValues(12.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.MonetizationOn,
+                                contentDescription = null,
+                                modifier = Modifier.size(14.dp),
+                                tint = if (tempPaymentMethods.contains("cash")) {
+                                    TaxiBlue
+                                } else {
+                                    TaxiGray
+                                }
                             )
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = label,
-                            fontSize = 14.sp,
-                            color = TaxiBlack
-                        )
+                            Text(
+                                text = "Կանխիկ",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+                    
+                    // Card button
+                    OutlinedButton(
+                        onClick = {
+                            tempPaymentMethods = if (tempPaymentMethods.contains("card")) {
+                                tempPaymentMethods - "card"
+                            } else {
+                                tempPaymentMethods + "card"
+                            }
+                        },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            containerColor = if (tempPaymentMethods.contains("card")) {
+                                TaxiBlue.copy(alpha = 0.1f)
+                            } else {
+                                Color.Transparent
+                            },
+                            contentColor = if (tempPaymentMethods.contains("card")) {
+                                TaxiBlue
+                            } else {
+                                TaxiGray
+                            }
+                        ),
+                        border = BorderStroke(
+                            width = 1.dp,
+                            color = if (tempPaymentMethods.contains("card")) {
+                                TaxiBlue
+                            } else {
+                                TaxiGray.copy(alpha = 0.3f)
+                            }
+                        ),
+                        contentPadding = PaddingValues(12.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.CreditCard,
+                                contentDescription = null,
+                                modifier = Modifier.size(14.dp),
+                                tint = if (tempPaymentMethods.contains("card")) {
+                                    TaxiBlue
+                                } else {
+                                    TaxiGray
+                                }
+                            )
+                            Text(
+                                text = "Քարտ",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
                     }
                 }
             }
@@ -564,11 +746,11 @@ private fun FilterDialog(
             TextButton(
                 onClick = {
                     // Apply filters
-                    val minPrice = tempMinPrice.toIntOrNull()
-                    val maxPrice = tempMaxPrice.toIntOrNull()
-                    val minSeats = tempMinSeats.toIntOrNull()
+                    val minPrice = 0 // Start from 0
+                    val maxPriceValue = maxPrice.toInt()
+                    val minSeats = tempMinSeats // Direct integer value
                     
-                    viewModel?.updateFilterPriceRange(minPrice, maxPrice)
+                    viewModel?.updateFilterPriceRange(minPrice, maxPriceValue)
                     viewModel?.updateFilterMinSeats(minSeats)
                     viewModel?.updateFilterPaymentMethods(tempPaymentMethods)
                     
