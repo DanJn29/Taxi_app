@@ -10,12 +10,18 @@ import com.example.taxi_app.data.api.LoginResponse
 import com.example.taxi_app.data.api.LogoutResponse
 import com.example.taxi_app.data.api.RegistrationRequest
 import com.example.taxi_app.data.api.CompanyRegistrationRequest
+import com.example.taxi_app.data.api.TripsResponse
+import com.example.taxi_app.data.api.TripData
 import com.google.gson.Gson
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import org.osmdroid.util.GeoPoint
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
+import java.time.ZonedDateTime
+import java.util.Locale
 
 // Error response data class for parsing API errors
 data class ErrorResponse(
@@ -81,6 +87,30 @@ class TaxiViewModel : ViewModel() {
     // Client Data
     private val _availableTrips = MutableStateFlow<List<Trip>>(emptyList())
     val availableTrips: StateFlow<List<Trip>> = _availableTrips.asStateFlow()
+    
+    private val _allTrips = MutableStateFlow<List<Trip>>(emptyList()) // Store all trips for filtering
+    
+    // Search and Filter States
+    private val _searchFromLocation = MutableStateFlow("")
+    val searchFromLocation: StateFlow<String> = _searchFromLocation.asStateFlow()
+    
+    private val _searchToLocation = MutableStateFlow("")
+    val searchToLocation: StateFlow<String> = _searchToLocation.asStateFlow()
+    
+    private val _filterMinPrice = MutableStateFlow<Int?>(null)
+    val filterMinPrice: StateFlow<Int?> = _filterMinPrice.asStateFlow()
+    
+    private val _filterMaxPrice = MutableStateFlow<Int?>(null)
+    val filterMaxPrice: StateFlow<Int?> = _filterMaxPrice.asStateFlow()
+    
+    private val _filterMinSeats = MutableStateFlow<Int?>(null)
+    val filterMinSeats: StateFlow<Int?> = _filterMinSeats.asStateFlow()
+    
+    private val _filterPaymentMethods = MutableStateFlow<List<String>>(emptyList())
+    val filterPaymentMethods: StateFlow<List<String>> = _filterPaymentMethods.asStateFlow()
+
+    private val _selectedTrip = MutableStateFlow<Trip?>(null)
+    val selectedTrip: StateFlow<Trip?> = _selectedTrip.asStateFlow()
 
     private val _clientBookings = MutableStateFlow<List<Booking>>(emptyList())
     val clientBookings: StateFlow<List<Booking>> = _clientBookings.asStateFlow()
@@ -126,6 +156,7 @@ class TaxiViewModel : ViewModel() {
                 Trip("1", "1", "2", "Yerevan Center", "Zvartnots Airport", 40.1776, 44.5126, 40.1596, 44.3931, 5000, 4, 2, "2025-08-26 14:30", status = "published", vehicle = sampleVehicles[0], driver = sampleMembers[0], distance = "15 km", duration = "25 min")
             )
             _trips.value = sampleTrips
+            _allTrips.value = sampleTrips
             _availableTrips.value = sampleTrips.filter { it.status == "published" && it.seatsTaken < it.seatsTotal }
         }
     }
@@ -156,6 +187,10 @@ class TaxiViewModel : ViewModel() {
                             rating = 0f,
                             totalTrips = 0
                         )
+                        
+                        // Load trips after successful login
+                        loadTrips()
+                        
                         _currentScreen.value = Screen.ClientHome
                     } else {
                         _errorMessage.value = loginResponse?.message ?: "Login failed"
@@ -192,6 +227,166 @@ class TaxiViewModel : ViewModel() {
                 _isLoading.value = false
             }
         }
+    }
+
+    // Helper function to format departure time from API to readable format
+    private fun formatDepartureTime(isoDateTime: String): String {
+        return try {
+            val zonedDateTime = ZonedDateTime.parse(isoDateTime)
+            
+            // Armenian month abbreviations
+            val armenianMonths = arrayOf(
+                "Հուն", "Փետ", "Մար", "Ապր", "Մայ", "Հուն",
+                "Հուլ", "Օգս", "Սեպ", "Հոկ", "Նոյ", "Դեկ"
+            )
+            
+            val month = armenianMonths[zonedDateTime.monthValue - 1]
+            val day = zonedDateTime.dayOfMonth
+            val year = zonedDateTime.year
+            val hour = String.format("%02d", zonedDateTime.hour)
+            val minute = String.format("%02d", zonedDateTime.minute)
+            
+            "$month $day, $year - $hour:$minute"
+        } catch (e: Exception) {
+            android.util.Log.e("TaxiApp", "Error formatting date: ${e.message}")
+            // Return original if parsing fails
+            isoDateTime
+        }
+    }
+
+    // Helper function to convert hex color to Armenian color name
+    private fun hexToArmenianColor(hexColor: String): String {
+        return try {
+            val normalizedHex = hexColor.lowercase().replace("#", "")
+            
+            // Ensure we have a valid hex string
+            if (normalizedHex.length < 3) {
+                return hexColor
+            }
+            
+            // Pad short hex codes (e.g., "fff" -> "ffffff")
+            val fullHex = when (normalizedHex.length) {
+                3 -> normalizedHex.map { "$it$it" }.joinToString("")
+                4 -> normalizedHex.take(3).map { "$it$it" }.joinToString("")
+                5 -> normalizedHex.take(6).padEnd(6, '0')
+                6 -> normalizedHex
+                else -> normalizedHex.take(6)
+            }
+            
+            when {
+                // White colors
+                fullHex in listOf("ffffff", "f8f8ff", "fffafa", "f0f8ff") -> "սպիտակ"
+                // Black colors  
+                fullHex in listOf("000000", "0f0f0f", "1a1a1a") -> "սեւ"
+                // Red colors
+                fullHex.startsWith("ff") && fullHex.substring(2, 4).toIntOrNull(16) ?: 255 < 100 -> "կարմիր"
+                fullHex in listOf("ff0000", "dc143c", "b22222", "8b0000", "cd5c5c") -> "կարմիր"
+                // Blue colors
+                fullHex.startsWith("0") && fullHex.contains("f") -> "կապույտ" 
+                fullHex in listOf("0000ff", "4169e1", "1e90ff", "6495ed", "87ceeb", "0ea5e9") -> "կապույտ"
+                // Green colors
+                fullHex.length >= 4 && fullHex.substring(2, 4).toIntOrNull(16) ?: 0 > 200 && 
+                fullHex.substring(0, 2).toIntOrNull(16) ?: 0 < 100 -> "կանաչ"
+                fullHex in listOf("00ff00", "32cd32", "90ee90", "228b22", "006400") -> "կանաչ"
+                // Yellow colors
+                fullHex.startsWith("ff") && fullHex.length >= 4 && 
+                fullHex.substring(2, 4).toIntOrNull(16) ?: 0 > 200 -> "դեղին"
+                fullHex in listOf("ffff00", "ffd700", "ffb347", "ffa500") -> "դեղին"
+                // Gray colors (all RGB values are equal)
+                fullHex.length >= 6 && 
+                fullHex.substring(0, 2) == fullHex.substring(2, 4) && 
+                fullHex.substring(2, 4) == fullHex.substring(4, 6) -> "գորշ"
+                fullHex in listOf("808080", "696969", "a9a9a9", "d3d3d3", "c0c0c0") -> "գորշ"
+                // Brown colors
+                fullHex in listOf("a0522d", "8b4513", "d2691e", "cd853f", "f4a460") -> "շագանակագույն"
+                // Purple colors
+                fullHex in listOf("800080", "9370db", "8a2be2", "9932cc", "ba55d3") -> "մանուշակագույն"
+                // Orange colors  
+                fullHex in listOf("ffa500", "ff8c00", "ff7f50", "ff6347", "ff4500") -> "նարնջագույն"
+                // Pink colors
+                fullHex in listOf("ffc0cb", "ffb6c1", "ff69b4", "ff1493", "c71585") -> "վարդագույն"
+                // Silver colors
+                fullHex in listOf("c0c0c0", "dcdcdc", "f5f5f5") -> "արծաթագույն"
+                // Default for unknown colors
+                else -> hexColor
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("TaxiApp", "Error converting color $hexColor: ${e.message}")
+            hexColor
+        }
+    }
+
+    private fun loadTrips() {
+        viewModelScope.launch {
+            try {
+                val token = _authToken.value
+                if (token.isNullOrEmpty()) {
+                    android.util.Log.e("TaxiApp", "No auth token available for trips API")
+                    return@launch
+                }
+
+                android.util.Log.d("TaxiApp", "Loading trips with token: $token")
+                val response = NetworkModule.apiService.getTrips("Bearer $token")
+
+                if (response.isSuccessful) {
+                    val tripsResponse = response.body()
+                    tripsResponse?.let { apiResponse ->
+                        // Convert API trips to local Trip objects
+                        val convertedTrips = apiResponse.data.map { tripData ->
+                            Trip(
+                                id = tripData.id.toString(),
+                                vehicleId = "",
+                                assignedDriverId = tripData.driver.id.toString(),
+                                fromAddr = tripData.from_addr,
+                                toAddr = tripData.to_addr,
+                                fromLat = tripData.from_lat,
+                                fromLng = tripData.from_lng,
+                                toLat = tripData.to_lat,
+                                toLng = tripData.to_lng,
+                                priceAmd = tripData.price_amd,
+                                seatsTotal = tripData.seats_total,
+                                seatsTaken = tripData.seats_taken,
+                                status = "published", // API trips are published
+                                departureAt = formatDepartureTime(tripData.departure_at),
+                                payMethods = tripData.pay_methods,
+                                vehicle = Vehicle(
+                                    id = "",
+                                    brand = tripData.vehicle.brand,
+                                    model = tripData.vehicle.model,
+                                    plate = tripData.vehicle.plate,
+                                    color = hexToArmenianColor(tripData.vehicle.color),
+                                    seats = tripData.vehicle.seats,
+                                    userId = tripData.driver.id.toString(),
+                                    isAvailable = true
+                                ),
+                                driver = User(
+                                    id = tripData.driver.id.toString(),
+                                    name = tripData.driver.name,
+                                    email = "",
+                                    role = "driver"
+                                )
+                            )
+                        }
+                        
+                        // Update trips state
+                        _trips.value = convertedTrips
+                        _allTrips.value = convertedTrips
+                        _availableTrips.value = convertedTrips.filter { it.seatsTaken < it.seatsTotal }
+                        
+                        android.util.Log.d("TaxiApp", "Successfully loaded ${convertedTrips.size} trips")
+                    }
+                } else {
+                    android.util.Log.e("TaxiApp", "Failed to load trips: ${response.message()}")
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("TaxiApp", "Error loading trips: ${e.message}")
+            }
+        }
+    }
+
+    // Public function to refresh trips
+    fun refreshTrips() {
+        loadTrips()
     }
 
     fun registerClient(name: String, email: String, password: String) {
@@ -232,6 +427,100 @@ class TaxiViewModel : ViewModel() {
 
     fun clearSuccessMessage() {
         _successMessage.value = null
+    }
+
+    fun selectTrip(trip: Trip) {
+        _selectedTrip.value = trip
+    }
+
+    fun clearSelectedTrip() {
+        _selectedTrip.value = null
+    }
+    
+    // Search and Filter Functions
+    fun updateSearchFromLocation(location: String) {
+        _searchFromLocation.value = location
+        applyFilters()
+    }
+    
+    fun updateSearchToLocation(location: String) {
+        _searchToLocation.value = location
+        applyFilters()
+    }
+    
+    fun updateFilterPriceRange(minPrice: Int?, maxPrice: Int?) {
+        _filterMinPrice.value = minPrice
+        _filterMaxPrice.value = maxPrice
+        applyFilters()
+    }
+    
+    fun updateFilterMinSeats(minSeats: Int?) {
+        _filterMinSeats.value = minSeats
+        applyFilters()
+    }
+    
+    fun updateFilterPaymentMethods(paymentMethods: List<String>) {
+        _filterPaymentMethods.value = paymentMethods
+        applyFilters()
+    }
+    
+    fun clearAllFilters() {
+        _searchFromLocation.value = ""
+        _searchToLocation.value = ""
+        _filterMinPrice.value = null
+        _filterMaxPrice.value = null
+        _filterMinSeats.value = null
+        _filterPaymentMethods.value = emptyList()
+        applyFilters()
+    }
+    
+    private fun applyFilters() {
+        val fromLocation = _searchFromLocation.value.trim()
+        val toLocation = _searchToLocation.value.trim()
+        val minPrice = _filterMinPrice.value
+        val maxPrice = _filterMaxPrice.value
+        val minSeats = _filterMinSeats.value
+        val paymentMethods = _filterPaymentMethods.value
+        
+        val filteredTrips = _allTrips.value.filter { trip ->
+            var matches = true
+            
+            // Filter by from location
+            if (fromLocation.isNotEmpty()) {
+                matches = matches && trip.fromAddr.contains(fromLocation, ignoreCase = true)
+            }
+            
+            // Filter by to location
+            if (toLocation.isNotEmpty()) {
+                matches = matches && trip.toAddr.contains(toLocation, ignoreCase = true)
+            }
+            
+            // Filter by price range
+            if (minPrice != null) {
+                matches = matches && trip.priceAmd >= minPrice
+            }
+            if (maxPrice != null) {
+                matches = matches && trip.priceAmd <= maxPrice
+            }
+            
+            // Filter by available seats
+            if (minSeats != null) {
+                val availableSeats = trip.seatsTotal - trip.seatsTaken
+                matches = matches && availableSeats >= minSeats
+            }
+            
+            // Filter by payment methods
+            if (paymentMethods.isNotEmpty()) {
+                matches = matches && trip.payMethods.any { it in paymentMethods }
+            }
+            
+            // Only show published trips with available seats
+            matches = matches && trip.status == "published" && trip.seatsTaken < trip.seatsTotal
+            
+            matches
+        }
+        
+        _availableTrips.value = filteredTrips
     }
 
     fun registerDriver(name: String, email: String, password: String) {
@@ -549,9 +838,8 @@ class TaxiViewModel : ViewModel() {
     }
 
     private fun updateAvailableTrips() {
-        _availableTrips.value = _trips.value.filter { 
-            it.status == "published" && it.seatsTaken < it.seatsTotal 
-        }
+        _allTrips.value = _trips.value
+        applyFilters()
     }
 
     fun updateCurrentMapLocation(location: org.osmdroid.util.GeoPoint) {

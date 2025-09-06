@@ -51,6 +51,7 @@ fun TaxiApp() {
     
     // Client data
     val availableTrips by viewModel.availableTrips.collectAsState()
+    val selectedTrip by viewModel.selectedTrip.collectAsState()
     val clientBookings by viewModel.clientBookings.collectAsState()
     
     // Driver data
@@ -177,27 +178,37 @@ fun TaxiApp() {
                             availableTrips = availableTrips,
                             onTripSelected = { trip ->
                                 // Store selected trip and navigate to booking
+                                viewModel.selectTrip(trip)
                                 viewModel.navigateToScreen(Screen.ClientBooking)
                             },
                             onProfileClicked = { viewModel.navigateToScreen(Screen.ClientProfile) },
                             onHistoryClicked = { viewModel.navigateToScreen(Screen.ClientHistory) },
-                            onLogout = viewModel::logout
+                            onLogout = viewModel::logout,
+                            viewModel = viewModel
                         )
                     }
                 }
                 Screen.ClientBooking -> {
                     currentUser?.let { user ->
-                        // For simplicity, using first available trip
-                        availableTrips.firstOrNull()?.let { trip ->
+                        selectedTrip?.let { trip ->
                             ClientBookingScreen(
                                 trip = trip,
                                 user = user,
                                 onBookTrip = { seats, payment, notes ->
                                     viewModel.bookTrip(trip.id, seats, payment, notes)
+                                    viewModel.clearSelectedTrip()
                                     viewModel.navigateToScreen(Screen.ClientHome)
                                 },
-                                onBack = { viewModel.navigateToScreen(Screen.ClientHome) }
+                                onBack = { 
+                                    viewModel.clearSelectedTrip()
+                                    viewModel.navigateToScreen(Screen.ClientHome) 
+                                }
                             )
+                        } ?: run {
+                            // If no trip is selected, go back to home
+                            LaunchedEffect(Unit) {
+                                viewModel.navigateToScreen(Screen.ClientHome)
+                            }
                         }
                     }
                 }

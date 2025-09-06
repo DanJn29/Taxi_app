@@ -12,6 +12,7 @@ val Pink40 = Color(0xFF7D5260)
 
 // Taxi app colors based on React app
 val TaxiYellow = Color(0xFFFFDD2C)
+val TaxiBlue = Color(0xFF2563EB) // Blue for primary actions
 val TaxiBlack = Color(0xFF000000)
 val TaxiBackground = Color(0xFFFFFAF0)
 val TaxiWhite = Color(0xFFFFFFFF)

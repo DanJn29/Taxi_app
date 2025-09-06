@@ -244,7 +244,7 @@ private fun TripCard(
             modifier = Modifier.padding(16.dp)
         ) {
             Text(
-                text = "${trip.vehicle?.brand ?: ""} ${trip.vehicle?.model ?: ""} · ${trip.vehicle?.plate ?: ""}",
+                text = "${trip.vehicle?.brand ?: ""} ${trip.vehicle?.model ?: ""} · ${trip.vehicle?.plate ?: ""} · ${trip.vehicle?.color ?: ""}",
                 fontSize = 14.sp,
                 color = TaxiGray,
                 modifier = Modifier.padding(bottom = 4.dp)

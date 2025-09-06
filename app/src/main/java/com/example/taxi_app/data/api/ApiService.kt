@@ -18,4 +18,7 @@ interface ApiService {
 
     @POST("logout")
     suspend fun logout(@Header("Authorization") token: String): Response<LogoutResponse>
+    
+    @GET("trips")
+    suspend fun getTrips(@Header("Authorization") token: String): Response<TripsResponse>
 }

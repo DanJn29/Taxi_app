@@ -56,3 +56,55 @@ data class UserResponse(
     val email: String,
     val email_verified_at: String?
 )
+
+// Trips API Response Models
+data class TripsResponse(
+    val data: List<TripData>,
+    val meta: TripMeta,
+    val links: TripLinks
+)
+
+data class TripData(
+    val id: Int,
+    val from_addr: String,
+    val to_addr: String,
+    val from_lat: Double,
+    val from_lng: Double,
+    val to_lat: Double,
+    val to_lng: Double,
+    val departure_at: String,
+    val price_amd: Int,
+    val seats_total: Int,
+    val seats_taken: Int,
+    val pending_requests_count: Int,
+    val vehicle: VehicleData,
+    val driver: DriverData,
+    val pay_methods: List<String>
+)
+
+data class VehicleData(
+    val brand: String,
+    val model: String,
+    val plate: String,
+    val color: String,
+    val seats: Int
+)
+
+data class DriverData(
+    val name: String,
+    val id: Int
+)
+
+data class TripMeta(
+    val current_page: Int,
+    val last_page: Int,
+    val per_page: Int,
+    val total: Int
+)
+
+data class TripLinks(
+    val first: String?,
+    val last: String?,
+    val prev: String?,
+    val next: String?
+)

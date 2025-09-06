@@ -17,6 +17,7 @@ import androidx.compose.ui.unit.sp
 import com.example.taxi_app.data.*
 import com.example.taxi_app.ui.components.*
 import com.example.taxi_app.ui.theme.*
+import com.example.taxi_app.viewmodel.TaxiViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -26,11 +27,33 @@ fun ClientHomeScreen(
     onTripSelected: (Trip) -> Unit,
     onProfileClicked: () -> Unit,
     onHistoryClicked: () -> Unit,
-    onLogout: () -> Unit
+    onLogout: () -> Unit,
+    viewModel: TaxiViewModel? = null
 ) {
-    var fromLocation by remember { mutableStateOf("") }
-    var toLocation by remember { mutableStateOf("") }
+    var searchFromLocation by remember { mutableStateOf("") }
+    var searchToLocation by remember { mutableStateOf("") }
     var showFilterDialog by remember { mutableStateOf(false) }
+    
+    // Collect states from ViewModel if available
+    viewModel?.let { vm ->
+        searchFromLocation = vm.searchFromLocation.collectAsState().value
+        searchToLocation = vm.searchToLocation.collectAsState().value
+    }
+    
+    val filterMinPrice = viewModel?.filterMinPrice?.collectAsState()?.value
+    val filterMaxPrice = viewModel?.filterMaxPrice?.collectAsState()?.value
+    val filterMinSeats = viewModel?.filterMinSeats?.collectAsState()?.value
+    val filterPaymentMethods = viewModel?.filterPaymentMethods?.collectAsState()?.value ?: emptyList()
+    
+    // Count active filters
+    val activeFiltersCount = listOfNotNull(
+        if (searchFromLocation.isNotEmpty()) 1 else null,
+        if (searchToLocation.isNotEmpty()) 1 else null,
+        filterMinPrice,
+        filterMaxPrice,
+        filterMinSeats,
+        if (filterPaymentMethods.isNotEmpty()) 1 else null
+    ).size
 
     Column(
         modifier = Modifier
@@ -100,16 +123,16 @@ fun ClientHomeScreen(
                     )
                     
                     TaxiTextField(
-                        value = fromLocation,
-                        onValueChange = { fromLocation = it },
+                        value = searchFromLocation,
+                        onValueChange = { viewModel?.updateSearchFromLocation(it) },
                         label = "Որտեղից",
                         placeholder = "Նշիր մեկնման կետը",
                         modifier = Modifier.padding(bottom = 12.dp)
                     )
                     
                     TaxiTextField(
-                        value = toLocation,
-                        onValueChange = { toLocation = it },
+                        value = searchToLocation,
+                        onValueChange = { viewModel?.updateSearchToLocation(it) },
                         label = "Ուր",
                         placeholder = "Նշիր նպատակակետը",
                         modifier = Modifier.padding(bottom = 16.dp)
@@ -120,24 +143,53 @@ fun ClientHomeScreen(
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         OutlinedButton(
-                            onClick = { showFilterDialog = true },
+                            onClick = { 
+                                showFilterDialog = true
+                            },
                             modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(12.dp)
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                containerColor = if (activeFiltersCount > 0) TaxiBlue.copy(alpha = 0.1f) else androidx.compose.ui.graphics.Color.Transparent
+                            )
                         ) {
                             Icon(
                                 imageVector = Icons.Default.FilterList,
                                 contentDescription = "Ֆիլտր",
-                                modifier = Modifier.size(16.dp)
+                                modifier = Modifier.size(16.dp),
+                                tint = if (activeFiltersCount > 0) TaxiBlue else androidx.compose.ui.graphics.Color.Gray
                             )
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("Ֆիլտր")
+                            Text(
+                                text = if (activeFiltersCount > 0) "Ֆիլտր ($activeFiltersCount)" else "Ֆիլտր",
+                                color = if (activeFiltersCount > 0) TaxiBlue else androidx.compose.ui.graphics.Color.Gray
+                            )
                         }
                         
-                        TaxiButton(
-                            text = "Գտնել",
-                            onClick = { /* Search logic */ },
-                            modifier = Modifier.weight(1f)
-                        )
+                        if (searchFromLocation.isNotEmpty() || searchToLocation.isNotEmpty()) {
+                            OutlinedButton(
+                                onClick = { viewModel?.clearAllFilters() },
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Clear,
+                                    contentDescription = "Մաքրել",
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Մաքրել")
+                            }
+                        } else {
+                            TaxiButton(
+                                text = "Գտնել",
+                                onClick = { 
+                                    // Trigger search by applying current filters
+                                    // This will be handled automatically by the ViewModel state changes
+                                },
+                                modifier = Modifier.weight(1f),
+                                enabled = searchFromLocation.isNotEmpty() || searchToLocation.isNotEmpty()
+                            )
+                        }
                     }
                 }
             }
@@ -145,18 +197,39 @@ fun ClientHomeScreen(
             
             // Available Trips
             item {
-                Text(
-                    text = "Հասանելի երթուղիներ",
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = TaxiBlack,
-                    modifier = Modifier.padding(bottom = 8.dp)
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Հասանելի երթուղիներ",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TaxiBlack
+                    )
+                    
+                    if (activeFiltersCount > 0) {
+                        Text(
+                            text = "${availableTrips.size} արդյունք",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = TaxiGray
+                        )
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(8.dp))
             }
             
             if (availableTrips.isEmpty()) {
                 item {
-                    EmptyState(message = "Երթուղիներ չկան")
+                    EmptyState(
+                        message = if (activeFiltersCount > 0) 
+                            "Այս ֆիլտրերով երթուղիներ չգտնվեցին" 
+                        else 
+                            "Երթուղիներ չկան"
+                    )
                 }
             } else {
                 items(availableTrips) { trip ->
@@ -167,6 +240,14 @@ fun ClientHomeScreen(
                 }
             }
         }
+    }
+    
+    // Filter Dialog
+    if (showFilterDialog) {
+        FilterDialog(
+            viewModel = viewModel,
+            onDismiss = { showFilterDialog = false }
+        )
     }
 }
 
@@ -290,6 +371,37 @@ private fun TripCard(
                         fontSize = 12.sp,
                         color = TaxiGray
                     )
+                    // Add plate number and color
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        trip.vehicle?.plate?.let { plate ->
+                            Text(
+                                text = "Համար՝ $plate",
+                                fontSize = 12.sp,
+                                color = TaxiGray
+                            )
+                            
+                            trip.vehicle.color?.let { color ->
+                                Text(
+                                    text = " • $color",
+                                    fontSize = 12.sp,
+                                    color = TaxiGray
+                                )
+                            }
+                        }
+                        
+                        // Show color only if no plate
+                        if (trip.vehicle?.plate == null) {
+                            trip.vehicle?.color?.let { color ->
+                                Text(
+                                    text = "Գույն՝ $color",
+                                    fontSize = 12.sp,
+                                    color = TaxiGray
+                                )
+                            }
+                        }
+                    }
                 }
                 
                 TaxiButton(
@@ -320,4 +432,170 @@ private fun TripCard(
             }
         }
     }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun FilterDialog(
+    viewModel: TaxiViewModel?,
+    onDismiss: () -> Unit
+) {
+    val filterMinPrice = viewModel?.filterMinPrice?.collectAsState()?.value
+    val filterMaxPrice = viewModel?.filterMaxPrice?.collectAsState()?.value
+    val filterMinSeats = viewModel?.filterMinSeats?.collectAsState()?.value
+    val filterPaymentMethods = viewModel?.filterPaymentMethods?.collectAsState()?.value ?: emptyList()
+    
+    var tempMinPrice by remember { mutableStateOf(filterMinPrice?.toString() ?: "") }
+    var tempMaxPrice by remember { mutableStateOf(filterMaxPrice?.toString() ?: "") }
+    var tempMinSeats by remember { mutableStateOf(filterMinSeats?.toString() ?: "") }
+    var tempPaymentMethods by remember { mutableStateOf(filterPaymentMethods) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = "Ֆիլտրեր",
+                fontSize = 20.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = TaxiBlack
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                // Price Range
+                Text(
+                    text = "Գնային շրջակ (AMD)",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = TaxiBlack
+                )
+                
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedTextField(
+                        value = tempMinPrice,
+                        onValueChange = { tempMinPrice = it },
+                        label = { Text("Նվազագույնը") },
+                        modifier = Modifier.weight(1f),
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = TaxiBlue,
+                            focusedLabelColor = TaxiBlue
+                        )
+                    )
+                    
+                    OutlinedTextField(
+                        value = tempMaxPrice,
+                        onValueChange = { tempMaxPrice = it },
+                        label = { Text("Առավելագույնը") },
+                        modifier = Modifier.weight(1f),
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = TaxiBlue,
+                            focusedLabelColor = TaxiBlue
+                        )
+                    )
+                }
+                
+                // Minimum Seats
+                Text(
+                    text = "Նվազագույն տեղերի քանակ",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = TaxiBlack
+                )
+                
+                OutlinedTextField(
+                    value = tempMinSeats,
+                    onValueChange = { tempMinSeats = it },
+                    label = { Text("Տեղերի քանակ") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = TaxiBlue,
+                        focusedLabelColor = TaxiBlue
+                    )
+                )
+                
+                // Payment Methods
+                Text(
+                    text = "Վճարման եղանակ",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = TaxiBlack
+                )
+                
+                val paymentOptions = listOf("cash" to "Կանխիկ", "card" to "Քարտ")
+                
+                paymentOptions.forEach { (value, label) ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Checkbox(
+                            checked = tempPaymentMethods.contains(value),
+                            onCheckedChange = { isChecked ->
+                                tempPaymentMethods = if (isChecked) {
+                                    tempPaymentMethods + value
+                                } else {
+                                    tempPaymentMethods - value
+                                }
+                            },
+                            colors = CheckboxDefaults.colors(
+                                checkedColor = TaxiBlue
+                            )
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = label,
+                            fontSize = 14.sp,
+                            color = TaxiBlack
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    // Apply filters
+                    val minPrice = tempMinPrice.toIntOrNull()
+                    val maxPrice = tempMaxPrice.toIntOrNull()
+                    val minSeats = tempMinSeats.toIntOrNull()
+                    
+                    viewModel?.updateFilterPriceRange(minPrice, maxPrice)
+                    viewModel?.updateFilterMinSeats(minSeats)
+                    viewModel?.updateFilterPaymentMethods(tempPaymentMethods)
+                    
+                    onDismiss()
+                }
+            ) {
+                Text(
+                    text = "Կիրառել",
+                    color = TaxiBlue,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+        },
+        dismissButton = {
+            TextButton(
+                onClick = {
+                    // Clear all filters
+                    viewModel?.clearAllFilters()
+                    onDismiss()
+                }
+            ) {
+                Text(
+                    text = "Մաքրել բոլորը",
+                    color = TaxiGray,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+        }
+    )
 }
