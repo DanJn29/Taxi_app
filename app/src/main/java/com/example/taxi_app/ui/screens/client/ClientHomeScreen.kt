@@ -48,6 +48,24 @@ fun ClientHomeScreen(
     val filterMinSeats = viewModel?.filterMinSeats?.collectAsState()?.value
     val filterPaymentMethods = viewModel?.filterPaymentMethods?.collectAsState()?.value ?: emptyList()
     
+    // Notification states
+    val unreadNotificationsCount = viewModel?.unreadNotificationsCount?.collectAsState()?.value ?: 0
+    val hasNewAcceptedRequests = viewModel?.hasNewAcceptedRequests?.collectAsState()?.value ?: false
+    val hasNewRejectedRequests = viewModel?.hasNewRejectedRequests?.collectAsState()?.value ?: false
+    val latestNotificationMessage = viewModel?.latestNotificationMessage?.collectAsState()?.value
+    
+    // Local state for showing notification snackbar
+    var showNotificationSnackbar by remember { mutableStateOf(false) }
+    var notificationMessage by remember { mutableStateOf("") }
+    
+    // Show notification when new accepted or rejected requests are detected
+    LaunchedEffect(hasNewAcceptedRequests, hasNewRejectedRequests) {
+        if ((hasNewAcceptedRequests || hasNewRejectedRequests) && latestNotificationMessage != null) {
+            notificationMessage = latestNotificationMessage
+            showNotificationSnackbar = true
+        }
+    }
+    
     // Count active filters
     val activeFiltersCount = listOfNotNull(
         if (searchFromLocation.isNotEmpty()) 1 else null,
@@ -65,48 +83,64 @@ fun ClientHomeScreen(
     ) {
         // Top Bar
         TopAppBar(
-            title = {
-                Column {
-                    Text(
-                        text = "Բարև, ${user.name.split(" ").firstOrNull() ?: ""}",
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = TaxiBlack
-                    )
-                    Text(
-                        text = "Ուր ենք գնալու այսօր?",
-                        fontSize = 14.sp,
-                        color = TaxiGray
-                    )
-                }
-            },
-            actions = {
-                IconButton(onClick = onProfileClicked) {
-                    Icon(
-                        imageVector = Icons.Default.AccountCircle,
-                        contentDescription = "Պրոֆիլ",
-                        tint = TaxiBlack
-                    )
-                }
-                IconButton(onClick = onHistoryClicked) {
-                    Icon(
-                        imageVector = Icons.Default.History,
-                        contentDescription = "Պատմություն",
-                        tint = TaxiBlack
-                    )
-                }
-                IconButton(onClick = onRequestsClicked) {
-                    Icon(
-                        imageVector = Icons.Default.Assignment,
-                        contentDescription = "Հայտեր",
-                        tint = TaxiBlack
-                    )
-                }
-            },
-            colors = TopAppBarDefaults.topAppBarColors(
-                containerColor = TaxiYellow
+                title = {
+                    Column {
+                        Text(
+                            text = "Բարև, ${user.name.split(" ").firstOrNull() ?: ""}",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = TaxiBlack
+                        )
+                        Text(
+                            text = "Ուր ենք գնալու այսօր?",
+                            fontSize = 14.sp,
+                            color = TaxiGray
+                        )
+                    }
+                },
+                actions = {
+                    IconButton(onClick = onProfileClicked) {
+                        Icon(
+                            imageVector = Icons.Default.AccountCircle,
+                            contentDescription = "Պրոֆիլ",
+                            tint = TaxiBlack
+                        )
+                    }
+                    IconButton(onClick = onHistoryClicked) {
+                        Icon(
+                            imageVector = Icons.Default.History,
+                            contentDescription = "Պատմություն",
+                            tint = TaxiBlack
+                        )
+                    }
+                    IconButton(onClick = onRequestsClicked) {
+                        Box {
+                            Icon(
+                                imageVector = Icons.Default.Assignment,
+                                contentDescription = "Հայտեր",
+                                tint = TaxiBlack
+                            )
+                            // Notification badge
+                            if (unreadNotificationsCount > 0) {
+                                Badge(
+                                    modifier = Modifier.align(Alignment.TopEnd),
+                                    containerColor = Color.Red,
+                                    contentColor = Color.White
+                                ) {
+                                    Text(
+                                        text = if (unreadNotificationsCount > 9) "9+" else unreadNotificationsCount.toString(),
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = TaxiYellow
+                )
             )
-        )
         
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
@@ -249,6 +283,18 @@ fun ClientHomeScreen(
                     )
                 }
             }
+        }
+    }
+    
+    // Show notification when new requests are accepted or rejected
+    if (showNotificationSnackbar) {
+        LaunchedEffect(Unit) {
+            // Log the notification message
+            android.util.Log.d("TaxiApp", "Showing notification: $notificationMessage")
+            kotlinx.coroutines.delay(4000)
+            showNotificationSnackbar = false
+            viewModel?.clearNotificationMessage()
+            // Don't reset notification count here - only when user opens requests page
         }
     }
     

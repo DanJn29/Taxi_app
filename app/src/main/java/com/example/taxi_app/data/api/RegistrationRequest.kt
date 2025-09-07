@@ -47,7 +47,8 @@ data class CompanyRegistrationRequest(
 
 data class RegistrationResponse(
     val user: UserResponse?,
-    val message: String?
+    val message: String?,
+    val token: String? = null // Optional token for auto-login after registration
 )
 
 data class UserResponse(
@@ -87,7 +88,8 @@ data class VehicleData(
     val model: String,
     val plate: String,
     val color: String,
-    val seats: Int
+    val seats: Int,
+    val photo: String? = null // URL to the vehicle photo
 )
 
 data class DriverData(
@@ -184,4 +186,28 @@ data class RequestsLinks(
     val last: String?,
     val prev: String?,
     val next: String?
+)
+
+// Driver Trips API Response Models
+data class DriverTripsResponse(
+    val data: List<DriverTripData>,
+    val meta: TripMeta,
+    val links: TripLinks
+)
+
+data class DriverTripData(
+    val id: Int,
+    val from_addr: String,
+    val to_addr: String,
+    val from_lat: Double,
+    val from_lng: Double,
+    val to_lat: Double,
+    val to_lng: Double,
+    val departure_at: String,
+    val price_amd: Int,
+    val seats_total: Int,
+    val seats_taken: Int,
+    val status: String,
+    val pay_methods: List<String>,
+    val pending_requests_count: Int
 )

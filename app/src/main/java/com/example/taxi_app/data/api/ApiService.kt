@@ -37,6 +37,18 @@ interface ApiService {
         @Query("per_page") perPage: Int = 20
     ): Response<RequestsResponse>
     
+    @GET("driver/vehicle")
+    suspend fun getDriverVehicle(
+        @Header("Authorization") token: String
+    ): Response<VehicleResponse>
+    
+    @GET("driver/trips")
+    suspend fun getDriverTrips(
+        @Header("Authorization") token: String,
+        @Query("status") status: String = "published",
+        @Query("per_page") perPage: Int = 20
+    ): Response<DriverTripsResponse>
+    
     @Multipart
     @POST("driver/vehicle")
     suspend fun registerVehicle(

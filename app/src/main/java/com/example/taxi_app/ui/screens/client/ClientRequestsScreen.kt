@@ -33,6 +33,11 @@ fun ClientRequestsScreen(
     val requests by viewModel.myRequests.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
 
+    // Mark notifications as read when this screen is opened
+    LaunchedEffect(Unit) {
+        viewModel.markNotificationsAsRead()
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -282,8 +287,9 @@ fun RequestCard(request: RequestData) {
 @Composable
 fun StatusChip(status: String) {
     val (backgroundColor, textColor, text) = when (status.lowercase()) {
-        "pending" -> Triple(TaxiYellow.copy(alpha = 0.2f), TaxiBlack, "Սպասարկում")
+        "pending" -> Triple(TaxiYellow.copy(alpha = 0.2f), TaxiBlack, "Սպասման մեջ")
         "approved" -> Triple(Color(0xFF4CAF50).copy(alpha = 0.2f), Color(0xFF2E7D32), "Հաստատված")
+        "accepted" -> Triple(Color(0xFF4CAF50).copy(alpha = 0.2f), Color(0xFF2E7D32), "Ընդունված")
         "rejected" -> Triple(Color(0xFFF44336).copy(alpha = 0.2f), Color(0xFFC62828), "Մերժված")
         "cancelled" -> Triple(TaxiGray.copy(alpha = 0.2f), TaxiGray, "Չեղարկված")
         else -> Triple(TaxiGray.copy(alpha = 0.2f), TaxiGray, status)

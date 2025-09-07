@@ -7,6 +7,8 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -92,6 +94,7 @@ fun DriverVehicleSetupScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(TaxiLightGray)
+            .statusBarsPadding() // Add safe area padding for status bar
     ) {
         // Header
         Card(
@@ -102,7 +105,7 @@ fun DriverVehicleSetupScreen(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(20.dp)
+                    .padding(horizontal = 16.dp, vertical = 12.dp) // Reduced padding for better fit
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -112,33 +115,36 @@ fun DriverVehicleSetupScreen(
                     IconButton(
                         onClick = onBack,
                         modifier = Modifier
-                            .size(48.dp)
-                            .clip(RoundedCornerShape(12.dp))
+                            .size(40.dp) // Slightly smaller for better fit
+                            .clip(RoundedCornerShape(10.dp))
                             .background(TaxiBlack.copy(alpha = 0.1f))
                     ) {
                         Icon(
                             imageVector = Icons.Default.ArrowBack,
                             contentDescription = "Վերադառնալ",
                             tint = TaxiBlack,
-                            modifier = Modifier.size(24.dp)
+                            modifier = Modifier.size(20.dp)
                         )
                     }
                     
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.weight(1f).padding(horizontal = 8.dp) // Use weight for flexible sizing
+                    ) {
                         Text(
                             text = "Ավտոմեքենայի գրանցում",
-                            fontSize = 20.sp,
+                            fontSize = 18.sp, // Slightly smaller font
                             fontWeight = FontWeight.Bold,
                             color = TaxiBlack
                         )
                         Text(
                             text = "Ավելացրեք ձեր ավտոմեքենայի տվյալները",
-                            fontSize = 14.sp,
+                            fontSize = 13.sp, // Slightly smaller font
                             color = TaxiBlack.copy(alpha = 0.7f)
                         )
                     }
                     
-                    Spacer(modifier = Modifier.size(48.dp))
+                    Spacer(modifier = Modifier.size(40.dp)) // Match back button size
                 }
             }
         }
@@ -148,8 +154,8 @@ fun DriverVehicleSetupScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(scrollState)
-                .padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+                .padding(horizontal = 16.dp, vertical = 12.dp), // More responsive padding
+            verticalArrangement = Arrangement.spacedBy(12.dp) // Slightly reduced spacing
         ) {
             // Car photo section
             Card(
@@ -167,11 +173,11 @@ fun DriverVehicleSetupScreen(
                         color = TaxiBlack
                     )
                     
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
                     
                     Box(
                         modifier = Modifier
-                            .size(200.dp)
+                            .size(160.dp) // Smaller size for better fit on small screens
                             .clip(RoundedCornerShape(12.dp))
                             .border(
                                 2.dp,
@@ -189,12 +195,12 @@ fun DriverVehicleSetupScreen(
                                 Icon(
                                     imageVector = Icons.Default.CheckCircle,
                                     contentDescription = "Նկարը ընտրված է",
-                                    modifier = Modifier.size(48.dp),
+                                    modifier = Modifier.size(40.dp), // Smaller icon
                                     tint = TaxiBlue
                                 )
                                 Text(
                                     text = "Նկարը ընտրված է",
-                                    fontSize = 14.sp,
+                                    fontSize = 12.sp, // Smaller text
                                     color = TaxiBlue
                                 )
                             }
@@ -205,12 +211,12 @@ fun DriverVehicleSetupScreen(
                                 Icon(
                                     imageVector = Icons.Default.DirectionsCar,
                                     contentDescription = null,
-                                    modifier = Modifier.size(48.dp),
+                                    modifier = Modifier.size(40.dp), // Smaller icon
                                     tint = TaxiGray
                                 )
                                 Text(
                                     text = "Ավելացնել նկար",
-                                    fontSize = 14.sp,
+                                    fontSize = 12.sp, // Smaller text
                                     color = TaxiGray
                                 )
                             }
@@ -517,7 +523,11 @@ fun DriverVehicleSetupScreen(
                 }
             }
             
-            Spacer(modifier = Modifier.height(20.dp))
+            // Add bottom padding for navigation bar
+            Spacer(modifier = Modifier
+                .height(20.dp)
+                .navigationBarsPadding() // Add safe area padding for navigation bar
+            )
         }
     }
 }

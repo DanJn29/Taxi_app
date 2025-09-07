@@ -5,6 +5,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.*
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.taxi_app.data.*
 import com.example.taxi_app.ui.screens.*
@@ -13,6 +14,7 @@ import com.example.taxi_app.ui.screens.driver.*
 import com.example.taxi_app.ui.screens.company.*
 import com.example.taxi_app.ui.theme.Taxi_appTheme
 import com.example.taxi_app.viewmodel.TaxiViewModel
+import com.example.taxi_app.viewmodel.TaxiViewModelFactory
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -28,7 +30,8 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun TaxiApp() {
-    val viewModel: TaxiViewModel = viewModel()
+    val context = LocalContext.current
+    val viewModel: TaxiViewModel = viewModel(factory = TaxiViewModelFactory(context))
     
     val appMode by viewModel.appMode.collectAsState()
     val currentUser by viewModel.currentUser.collectAsState()
@@ -57,6 +60,7 @@ fun TaxiApp() {
     // Driver data
     val driverStats by viewModel.driverStats.collectAsState()
     val driverTrips by viewModel.driverTrips.collectAsState()
+    val driverPublishedTrips by viewModel.driverPublishedTrips.collectAsState()
 
     when {
         appMode == null -> {
@@ -285,6 +289,7 @@ fun TaxiApp() {
                             driver = driver,
                             stats = driverStats,
                             availableTrips = driverTrips.filter { it.status == "published" },
+                            publishedTrips = driverPublishedTrips,
                             onAcceptTrip = viewModel::acceptDriverTrip,
                             onToggleAvailability = viewModel::toggleDriverAvailability,
                             onViewEarnings = { viewModel.navigateToScreen(Screen.DriverEarnings) },

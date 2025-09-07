@@ -1,5 +1,6 @@
 package com.example.taxi_app.viewmodel
 
+import android.content.Context
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -12,11 +13,15 @@ import com.example.taxi_app.data.api.RegistrationRequest
 import com.example.taxi_app.data.api.CompanyRegistrationRequest
 import com.example.taxi_app.data.api.TripsResponse
 import com.example.taxi_app.data.api.TripData
+import com.example.taxi_app.data.api.DriverTripsResponse
+import com.example.taxi_app.data.api.DriverTripData
 import com.example.taxi_app.data.api.VehicleResponse
 import com.example.taxi_app.data.api.BookingRequest
 import com.example.taxi_app.data.api.BookingResponse
 import com.example.taxi_app.data.api.RequestsResponse
 import com.example.taxi_app.data.api.RequestData
+import com.example.taxi_app.utils.NotificationHelper
+import com.example.taxi_app.utils.AuthManager
 import com.google.gson.Gson
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -37,7 +42,11 @@ data class ErrorResponse(
     val message: String?
 )
 
-class TaxiViewModel : ViewModel() {
+class TaxiViewModel(private val context: Context) : ViewModel() {
+
+    // Initialize notification helper and auth manager
+    private val notificationHelper = NotificationHelper(context)
+    private val authManager = AuthManager(context)
 
     // App Mode
     private val _appMode = MutableStateFlow<AppMode?>(null)
@@ -92,6 +101,14 @@ class TaxiViewModel : ViewModel() {
     // Authentication Token
     private val _authToken = MutableStateFlow<String?>(null)
     val authToken: StateFlow<String?> = _authToken.asStateFlow()
+    
+    // Authentication State
+    private val _isAuthenticated = MutableStateFlow(false)
+    val isAuthenticated: StateFlow<Boolean> = _isAuthenticated.asStateFlow()
+    
+    // Track if driver just registered and needs vehicle setup
+    private val _isNewDriverRegistration = MutableStateFlow(false)
+    val isNewDriverRegistration: StateFlow<Boolean> = _isNewDriverRegistration.asStateFlow()
 
     // Client Data
     private val _availableTrips = MutableStateFlow<List<Trip>>(emptyList())
@@ -128,6 +145,20 @@ class TaxiViewModel : ViewModel() {
     private val _myRequests = MutableStateFlow<List<RequestData>>(emptyList())
     val myRequests: StateFlow<List<RequestData>> = _myRequests.asStateFlow()
 
+    // Notification States
+    private val _unreadNotificationsCount = MutableStateFlow(0)
+    val unreadNotificationsCount: StateFlow<Int> = _unreadNotificationsCount.asStateFlow()
+    
+    private val _lastReadRequestCount = MutableStateFlow(0)
+    private val _hasNewAcceptedRequests = MutableStateFlow(false)
+    val hasNewAcceptedRequests: StateFlow<Boolean> = _hasNewAcceptedRequests.asStateFlow()
+    
+    private val _hasNewRejectedRequests = MutableStateFlow(false)
+    val hasNewRejectedRequests: StateFlow<Boolean> = _hasNewRejectedRequests.asStateFlow()
+    
+    private val _latestNotificationMessage = MutableStateFlow<String?>(null)
+    val latestNotificationMessage: StateFlow<String?> = _latestNotificationMessage.asStateFlow()
+
     // Driver Data
     private val _driverStats = MutableStateFlow(
         DriverStats(
@@ -144,6 +175,10 @@ class TaxiViewModel : ViewModel() {
     private val _driverTrips = MutableStateFlow<List<Trip>>(emptyList())
     val driverTrips: StateFlow<List<Trip>> = _driverTrips.asStateFlow()
 
+    // Driver Published Trips from API
+    private val _driverPublishedTrips = MutableStateFlow<List<DriverTripData>>(emptyList())
+    val driverPublishedTrips: StateFlow<List<DriverTripData>> = _driverPublishedTrips.asStateFlow()
+
     // Auto-refresh mechanism
     private var autoRefreshJob: Job? = null
     private val _autoRefreshEnabled = MutableStateFlow(false)
@@ -158,6 +193,49 @@ class TaxiViewModel : ViewModel() {
 
     init {
         loadSampleData()
+        restoreAuthSession()
+    }
+
+    private fun restoreAuthSession() {
+        viewModelScope.launch {
+            if (authManager.hasValidSession()) {
+                val savedToken = authManager.getAuthToken()
+                val savedUser = authManager.getUserData()
+                val savedAppMode = authManager.getAppMode()
+                
+                if (savedToken != null && savedUser != null && savedAppMode != null) {
+                    // Restore authentication state
+                    _authToken.value = savedToken
+                    _currentUser.value = savedUser
+                    _appMode.value = savedAppMode
+                    _isAuthenticated.value = true
+                    
+                    // Load user-specific data based on user type
+                    when (savedUser.role) {
+                        "client" -> {
+                            // Load client-specific data
+                            loadTrips()
+                            loadMyRequests()
+                            _currentScreen.value = Screen.ClientHome
+                        }
+                        "driver" -> {
+                            // For restored sessions, always go to dashboard (never vehicle setup)
+                            // Vehicle setup is only for newly registered drivers
+                            _currentScreen.value = Screen.DriverDashboard
+                        }
+                        "company" -> {
+                            // Load company-specific data
+                            _currentScreen.value = Screen.Dashboard
+                        }
+                    }
+                    
+                    // Start auto-refresh for authenticated users
+                    startAutoRefresh()
+                    
+                    android.util.Log.d("TaxiApp", "Authentication restored for user: ${savedUser.id}, type: ${savedUser.role}")
+                }
+            }
+        }
     }
 
     private fun loadSampleData() {
@@ -198,7 +276,7 @@ class TaxiViewModel : ViewModel() {
                         _authToken.value = loginResponse.token
                         android.util.Log.d("TaxiApp", "Login successful, stored token: ${loginResponse.token}")
                         
-                        _currentUser.value = User(
+                        val currentUser = User(
                             id = loginResponse.user.id.toString(),
                             name = loginResponse.user.name,
                             email = loginResponse.user.email,
@@ -207,6 +285,16 @@ class TaxiViewModel : ViewModel() {
                             isVerified = loginResponse.user.email_verified_at != null,
                             rating = 0f,
                             totalTrips = 0
+                        )
+                        
+                        _currentUser.value = currentUser
+                        _isAuthenticated.value = true
+                        
+                        // Save authentication data for persistent login
+                        authManager.saveAuthData(
+                            token = loginResponse.token,
+                            user = currentUser,
+                            appMode = AppMode.CLIENT
                         )
                         
                         // Load trips after successful login
@@ -432,8 +520,53 @@ class TaxiViewModel : ViewModel() {
                 if (response.isSuccessful) {
                     val requestsResponse = response.body()
                     requestsResponse?.let { apiResponse ->
-                        _myRequests.value = apiResponse.data
-                        android.util.Log.d("TaxiApp", "Successfully loaded ${apiResponse.data.size} requests")
+                        val previousRequests = _myRequests.value
+                        val newRequests = apiResponse.data
+                        
+                        // Check for newly accepted requests
+                        val previousAcceptedCount = previousRequests.count { 
+                            it.status.lowercase() in listOf("accepted", "approved") 
+                        }
+                        val newAcceptedCount = newRequests.count { 
+                            it.status.lowercase() in listOf("accepted", "approved") 
+                        }
+                        
+                        // Check for newly rejected requests
+                        val previousRejectedCount = previousRequests.count { 
+                            it.status.lowercase() in listOf("rejected", "declined") 
+                        }
+                        val newRejectedCount = newRequests.count { 
+                            it.status.lowercase() in listOf("rejected", "declined") 
+                        }
+                        
+                        // If there are new accepted requests, increment notification count
+                        if (newAcceptedCount > previousAcceptedCount && previousRequests.isNotEmpty()) {
+                            val newAcceptedRequestsCount = newAcceptedCount - previousAcceptedCount
+                            _unreadNotificationsCount.value += newAcceptedRequestsCount
+                            _hasNewAcceptedRequests.value = true
+                            _latestNotificationMessage.value = "Ձեր հայտը ընդունվել է! 🎉"
+                            
+                            // Send push notification for accepted request
+                            notificationHelper.showRequestAcceptedNotification()
+                            
+                            android.util.Log.d("TaxiApp", "Found $newAcceptedRequestsCount new accepted requests")
+                        }
+                        
+                        // If there are new rejected requests, increment notification count
+                        if (newRejectedCount > previousRejectedCount && previousRequests.isNotEmpty()) {
+                            val newRejectedRequestsCount = newRejectedCount - previousRejectedCount
+                            _unreadNotificationsCount.value += newRejectedRequestsCount
+                            _hasNewRejectedRequests.value = true
+                            _latestNotificationMessage.value = "Ձեր հայտը մերժվել է 😔"
+                            
+                            // Send push notification for rejected request
+                            notificationHelper.showRequestRejectedNotification()
+                            
+                            android.util.Log.d("TaxiApp", "Found $newRejectedRequestsCount new rejected requests")
+                        }
+                        
+                        _myRequests.value = newRequests
+                        android.util.Log.d("TaxiApp", "Successfully loaded ${newRequests.size} requests")
                     }
                 } else {
                     android.util.Log.e("TaxiApp", "Failed to load requests: ${response.message()}")
@@ -449,6 +582,26 @@ class TaxiViewModel : ViewModel() {
     // Public function to refresh requests
     fun refreshMyRequests() {
         loadMyRequests()
+    }
+
+    // Notification management functions
+    fun markNotificationsAsRead() {
+        _unreadNotificationsCount.value = 0
+        _hasNewAcceptedRequests.value = false
+        _hasNewRejectedRequests.value = false
+        _latestNotificationMessage.value = null
+        android.util.Log.d("TaxiApp", "Notifications marked as read")
+    }
+    
+    fun resetNotificationCount() {
+        _unreadNotificationsCount.value = 0
+        _hasNewAcceptedRequests.value = false
+        _hasNewRejectedRequests.value = false
+        _latestNotificationMessage.value = null
+    }
+    
+    fun clearNotificationMessage() {
+        _latestNotificationMessage.value = null
     }
 
     fun registerClient(name: String, email: String, password: String) {
@@ -605,7 +758,39 @@ class TaxiViewModel : ViewModel() {
                 if (response.isSuccessful) {
                     val registrationResponse = response.body()
                     if (registrationResponse?.user != null) {
-                        _successMessage.value = "Վարորդի գրանցումը հաջողվեց: Խնդրում ենք սպասել ադմինիստրատորի հաստատմանը:"
+                        // After successful driver registration, go directly to car registration
+                        android.util.Log.d("TaxiApp", "Driver registration successful - redirecting to car registration")
+                        
+                        // Check if we have a token for vehicle registration
+                        if (registrationResponse.token != null) {
+                            // Set temporary auth token for vehicle registration
+                            _authToken.value = registrationResponse.token
+                            android.util.Log.d("TaxiApp", "Using registration token for vehicle setup: ${registrationResponse.token}")
+                        } else {
+                            // If no token, we'll need to handle vehicle registration differently
+                            // For now, log a warning but continue
+                            android.util.Log.w("TaxiApp", "No token provided in registration response")
+                        }
+                        
+                        // Store user data temporarily for car registration
+                        val tempUser = User(
+                            id = registrationResponse.user.id.toString(),
+                            name = registrationResponse.user.name,
+                            email = registrationResponse.user.email,
+                            role = "driver",
+                            phone = "",
+                            isVerified = registrationResponse.user.email_verified_at != null,
+                            rating = 0f,
+                            totalTrips = 0
+                        )
+                        
+                        // Set temporary user data (not fully logged in yet)
+                        _currentUser.value = tempUser
+                        _appMode.value = AppMode.DRIVER
+                        
+                        // Show success message and go to vehicle setup
+                        _successMessage.value = "Վարորդի գրանցումը հաջողվեց: Այժմ գրանցեք ձեր ավտոմեքենան:"
+                        _currentScreen.value = Screen.DriverVehicleSetup
                     } else {
                         _errorMessage.value = "Գրանցում չհաջողվեց: Խնդրում ենք նորից փորձել:"
                     }
@@ -734,7 +919,7 @@ class TaxiViewModel : ViewModel() {
                         _authToken.value = loginResponse.token
                         android.util.Log.d("TaxiApp", "Company login successful, stored token: ${loginResponse.token}")
                         
-                        _currentUser.value = User(
+                        val currentUser = User(
                             id = loginResponse.user.id.toString(),
                             name = loginResponse.user.name,
                             email = loginResponse.user.email,
@@ -743,6 +928,16 @@ class TaxiViewModel : ViewModel() {
                             isVerified = loginResponse.user.email_verified_at != null,
                             rating = 0f,
                             totalTrips = 0
+                        )
+                        
+                        _currentUser.value = currentUser
+                        _isAuthenticated.value = true
+                        
+                        // Save authentication data for persistent login
+                        authManager.saveAuthData(
+                            token = loginResponse.token,
+                            user = currentUser,
+                            appMode = AppMode.COMPANY
                         )
                         
                         // Start auto-refresh to keep data synchronized
@@ -1047,7 +1242,7 @@ class TaxiViewModel : ViewModel() {
                         _authToken.value = loginResponse.token
                         android.util.Log.d("TaxiApp", "Driver login successful, stored token: ${loginResponse.token}")
                         
-                        _currentUser.value = User(
+                        val currentUser = User(
                             id = loginResponse.user.id.toString(),
                             name = loginResponse.user.name,
                             email = loginResponse.user.email,
@@ -1058,21 +1253,27 @@ class TaxiViewModel : ViewModel() {
                             totalTrips = 0
                         )
                         
-                        // Check if this is a first-time login (user needs to register vehicle)
-                        // For testing purposes, always redirect to vehicle setup
-                        // In production, you would check the API response for existing vehicle data
-                        val hasVehicle = false // Always false for now to test vehicle registration
+                        _currentUser.value = currentUser
+                        _isAuthenticated.value = true
+                        
+                        // Save authentication data for persistent login
+                        authManager.saveAuthData(
+                            token = loginResponse.token,
+                            user = currentUser,
+                            appMode = AppMode.DRIVER
+                        )
+                        
+                        // For all driver logins, go directly to dashboard
+                        // Vehicle setup was completed during registration flow
+                        android.util.Log.d("TaxiApp", "Driver login successful - going to dashboard")
                         
                         // Start auto-refresh to keep data synchronized
                         startAutoRefresh()
                         
-                        if (hasVehicle) {
-                            _currentScreen.value = Screen.DriverDashboard
-                        } else {
-                            // First time login or no vehicle registered - redirect to vehicle setup
-                            android.util.Log.d("TaxiApp", "Redirecting to vehicle setup screen")
-                            _currentScreen.value = Screen.DriverVehicleSetup
-                        }
+                        // Fetch driver's published trips
+                        fetchDriverTrips()
+                        
+                        _currentScreen.value = Screen.DriverDashboard
                     } else {
                         _errorMessage.value = "Մուտք չհաջողվեց: Խնդրում ենք նորից փորձել:"
                     }
@@ -1113,6 +1314,50 @@ class TaxiViewModel : ViewModel() {
     fun acceptDriverTrip(tripId: String) {
         viewModelScope.launch {
             // Driver accepts a trip assignment
+        }
+    }
+
+    /**
+     * Checks if driver has ever called the vehicle registration API.
+     * This function is available for future features that might need to check vehicle status,
+     * but is not used for login routing decisions.
+     */
+    private suspend fun checkDriverHasVehicleRecord(): Boolean {
+        return try {
+            val token = _authToken.value
+            if (token != null) {
+                android.util.Log.d("TaxiApp", "Checking if driver has ever registered a vehicle")
+                val response = NetworkModule.apiService.getDriverVehicle("Bearer $token")
+                
+                if (response.isSuccessful) {
+                    val vehicleResponse = response.body()
+                    val vehicleData = vehicleResponse?.vehicle ?: vehicleResponse?.data
+                    
+                    // If driver has ANY vehicle record, they have used the API before
+                    val hasVehicleRecord = vehicleData != null
+                    android.util.Log.d("TaxiApp", "Driver has vehicle record: $hasVehicleRecord")
+                    
+                    if (hasVehicleRecord) {
+                        android.util.Log.d("TaxiApp", "Vehicle found: brand=${vehicleData?.brand}, model=${vehicleData?.model}, photo=${vehicleData?.photo}")
+                    }
+                    
+                    return hasVehicleRecord
+                } else if (response.code() == 404) {
+                    // 404 typically means no vehicle record exists
+                    android.util.Log.d("TaxiApp", "No vehicle record found (404) - driver needs to register vehicle")
+                    return false
+                } else {
+                    android.util.Log.d("TaxiApp", "API error ${response.code()} - assuming no vehicle record")
+                    return false
+                }
+            } else {
+                android.util.Log.e("TaxiApp", "No auth token available")
+                return false
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("TaxiApp", "Error checking driver vehicle: ${e.message}", e)
+            // On error, assume no vehicle to be safe
+            return false
         }
     }
 
@@ -1232,6 +1477,16 @@ class TaxiViewModel : ViewModel() {
                         _successMessage.value = "Ավտոմեքենան հաջողությամբ գրանցվեց"
                         android.util.Log.d("TaxiApp", "Vehicle registered successfully")
                         android.util.Log.d("TaxiApp", "Success criteria met - vehicle: ${vehicleResponse?.vehicle}, message: ${vehicleResponse?.message}")
+                        
+                        // After vehicle registration, clear temporary auth data but keep driver mode
+                        _currentUser.value = null
+                        // Keep _appMode.value = AppMode.DRIVER to stay in driver flow
+                        _authToken.value = null // Clear temporary token
+                        _isAuthenticated.value = false
+                        
+                        // Show completion message and redirect directly to driver login
+                        _successMessage.value = "Ավտոմեքենայի գրանցումը ավարտվեց: Խնդրում ենք մուտք գործել:"
+                        _currentScreen.value = Screen.DriverLogin
                     } else {
                         _errorMessage.value = vehicleResponse?.message ?: "Ավտոմեքենայի գրանցումը չհաջողվեց"
                         android.util.Log.w("TaxiApp", "Vehicle registration failed: ${vehicleResponse?.message}")
@@ -1290,10 +1545,15 @@ class TaxiViewModel : ViewModel() {
             // Stop auto-refresh
             stopAutoRefresh()
             
+            // Clear persistent authentication data
+            authManager.clearAuthData()
+            
             _currentUser.value = null
             _appMode.value = null
             _currentMapLocation.value = null
             _authToken.value = null // Clear the token
+            _isAuthenticated.value = false
+            _isNewDriverRegistration.value = false // Reset registration flag
             _currentScreen.value = Screen.Dashboard
         }
     }
@@ -1326,6 +1586,43 @@ class TaxiViewModel : ViewModel() {
         autoRefreshJob = null
     }
 
+    // Fetch driver published trips from API
+    fun fetchDriverTrips() {
+        viewModelScope.launch {
+            try {
+                val token = _authToken.value
+                if (token != null) {
+                    android.util.Log.d("TaxiApp", "Fetching driver trips from API")
+                    
+                    val response = NetworkModule.apiService.getDriverTrips(
+                        token = "Bearer $token",
+                        status = "published",
+                        perPage = 20
+                    )
+                    
+                    if (response.isSuccessful) {
+                        val tripsResponse = response.body()
+                        if (tripsResponse?.data != null) {
+                            _driverPublishedTrips.value = tripsResponse.data
+                            android.util.Log.d("TaxiApp", "Successfully loaded ${tripsResponse.data.size} driver trips")
+                        } else {
+                            android.util.Log.w("TaxiApp", "No trips data in response")
+                            _driverPublishedTrips.value = emptyList()
+                        }
+                    } else {
+                        android.util.Log.e("TaxiApp", "Failed to fetch driver trips: ${response.code()}")
+                        _errorMessage.value = "Չհաջողվեց բեռնել ուղևորությունները"
+                    }
+                } else {
+                    android.util.Log.w("TaxiApp", "No auth token available for fetching driver trips")
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("TaxiApp", "Error fetching driver trips", e)
+                _errorMessage.value = "Ինտերնետ կապի խնդիր: Խնդրում ենք ստուգել ձեր կապը"
+            }
+        }
+    }
+
     private fun refreshData() {
         // Refresh trips data for all users
         loadTrips()
@@ -1333,6 +1630,11 @@ class TaxiViewModel : ViewModel() {
         // Refresh requests data for clients
         if (_currentUser.value?.role == "client") {
             loadMyRequests()
+        }
+        
+        // Refresh driver trips for drivers
+        if (_currentUser.value?.role == "driver") {
+            fetchDriverTrips()
         }
         
         // Additional refresh calls can be added here based on user role if needed

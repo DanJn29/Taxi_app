@@ -24,6 +24,7 @@ fun DriverDashboardScreen(
     driver: User,
     stats: DriverStats,
     availableTrips: List<Trip>,
+    publishedTrips: List<com.example.taxi_app.data.api.DriverTripData>,
     onAcceptTrip: (String) -> Unit,
     onToggleAvailability: () -> Unit,
     onViewEarnings: () -> Unit,
@@ -229,25 +230,33 @@ fun DriverDashboardScreen(
                     }
                 }
             }
-        } else if (availableTrips.isEmpty()) {
+        } else if (publishedTrips.isEmpty()) {
             item {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp)
                 ) {
-                    EmptyState(message = "Նոր երթուղիներ չկան")
+                    EmptyState(message = "Հրապարակված երթուղիներ չկան")
                 }
             }
         } else {
-            items(availableTrips) { trip ->
+            item {
+                // Published trips header
+                Text(
+                    text = "Ձեր հրապարակված երթուղիները",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = TaxiBlack,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                )
+            }
+            
+            items(publishedTrips) { trip ->
                 Box(
                     modifier = Modifier.padding(horizontal = 16.dp)
                 ) {
-                    DriverTripCard(
-                        trip = trip,
-                        onAccept = { onAcceptTrip(trip.id) }
-                    )
+                    PublishedTripCard(trip = trip)
                 }
             }
         }
@@ -419,6 +428,175 @@ private fun DriverTripCard(
                 onClick = onAccept,
                 modifier = Modifier.fillMaxWidth()
             )
+        }
+    }
+}
+
+@Composable
+private fun PublishedTripCard(
+    trip: com.example.taxi_app.data.api.DriverTripData
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = TaxiWhite),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp)
+        ) {
+            // Trip Route
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(
+                    modifier = Modifier.weight(1f)
+                ) {
+                    // From location
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.FiberManualRecord,
+                            contentDescription = null,
+                            tint = StatusPublished,
+                            modifier = Modifier.size(8.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = trip.from_addr,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = TaxiBlack
+                        )
+                    }
+                    
+                    Spacer(modifier = Modifier.height(4.dp))
+                    
+                    // To location
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.LocationOn,
+                            contentDescription = null,
+                            tint = StatusError,
+                            modifier = Modifier.size(8.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = trip.to_addr,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = TaxiBlack
+                        )
+                    }
+                }
+                
+                Column(
+                    horizontalAlignment = Alignment.End
+                ) {
+                    Text(
+                        text = "${trip.price_amd} AMD",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TaxiBlack
+                    )
+                    Text(
+                        text = "Ուղևորներ՝ ${trip.seats_taken}/${trip.seats_total}",
+                        fontSize = 12.sp,
+                        color = TaxiGray
+                    )
+                }
+            }
+            
+            // Departure time
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Schedule,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                    tint = TaxiGray
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                    text = "Մեկնում՝ ${trip.departure_at}",
+                    fontSize = 12.sp,
+                    color = TaxiGray
+                )
+            }
+            
+            // Status and payment methods
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.CheckCircle,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = StatusPublished
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "Հրապարակված",
+                        fontSize = 12.sp,
+                        color = StatusPublished,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+                
+                Text(
+                    text = trip.pay_methods.joinToString(", ") { 
+                        when(it) {
+                            "cash" -> "Կանխիկ"
+                            "card" -> "Քարտ"
+                            else -> it
+                        }
+                    },
+                    fontSize = 12.sp,
+                    color = TaxiGray
+                )
+            }
+            
+            // Pending requests indicator if any
+            if (trip.pending_requests_count > 0) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(
+                            TaxiYellow.copy(alpha = 0.1f),
+                            RoundedCornerShape(8.dp)
+                        )
+                        .padding(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Notifications,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = TaxiYellow
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "${trip.pending_requests_count} նոր հարցում",
+                        fontSize = 12.sp,
+                        color = TaxiBlack,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
         }
     }
 }
