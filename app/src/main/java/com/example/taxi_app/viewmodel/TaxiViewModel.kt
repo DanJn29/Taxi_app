@@ -15,6 +15,7 @@ import com.example.taxi_app.data.api.TripsResponse
 import com.example.taxi_app.data.api.TripData
 import com.example.taxi_app.data.api.DriverTripsResponse
 import com.example.taxi_app.data.api.DriverTripData
+import com.example.taxi_app.data.api.DriverRequestData
 import com.example.taxi_app.data.api.VehicleResponse
 import com.example.taxi_app.data.api.BookingRequest
 import com.example.taxi_app.data.api.BookingResponse
@@ -179,13 +180,24 @@ class TaxiViewModel(private val context: Context) : ViewModel() {
     private val _driverPublishedTrips = MutableStateFlow<List<DriverTripData>>(emptyList())
     val driverPublishedTrips: StateFlow<List<DriverTripData>> = _driverPublishedTrips.asStateFlow()
 
+    // Driver Vehicle
+    private val _driverVehicle = MutableStateFlow<Vehicle?>(null)
+    val driverVehicle: StateFlow<Vehicle?> = _driverVehicle.asStateFlow()
+
+    // Driver Requests from API
+    private val _driverRequests = MutableStateFlow<List<DriverRequestData>>(emptyList())
+    val driverRequests: StateFlow<List<DriverRequestData>> = _driverRequests.asStateFlow()
+
+    private val _isLoadingRequests = MutableStateFlow(false)
+    val isLoadingRequests: StateFlow<Boolean> = _isLoadingRequests.asStateFlow()
+
     // Auto-refresh mechanism
     private var autoRefreshJob: Job? = null
     private val _autoRefreshEnabled = MutableStateFlow(false)
     val autoRefreshEnabled: StateFlow<Boolean> = _autoRefreshEnabled.asStateFlow()
     
-    // Refresh interval in milliseconds (30 seconds)
-    private val refreshIntervalMs = 30_000L
+    // Refresh interval in milliseconds (10 seconds - increased frequency for better trip updates)
+    private val refreshIntervalMs = 10_000L
 
     // Navigation
     private val _currentScreen = MutableStateFlow<Screen>(Screen.Dashboard)
@@ -447,7 +459,13 @@ class TaxiViewModel(private val context: Context) : ViewModel() {
                     val tripsResponse = response.body()
                     tripsResponse?.let { apiResponse ->
                         // Convert API trips to local Trip objects
-                        val convertedTrips = apiResponse.data.map { tripData ->
+                        val convertedTrips = apiResponse.data.mapNotNull { tripData ->
+                            // Skip trips without driver data to avoid null pointer exceptions
+                            if (tripData.driver == null) {
+                                android.util.Log.w("TaxiApp", "Skipping trip ${tripData.id} due to missing driver data")
+                                return@mapNotNull null
+                            }
+                            
                             Trip(
                                 id = tripData.id.toString(),
                                 vehicleId = "",
@@ -1263,17 +1281,29 @@ class TaxiViewModel(private val context: Context) : ViewModel() {
                             appMode = AppMode.DRIVER
                         )
                         
-                        // For all driver logins, go directly to dashboard
-                        // Vehicle setup was completed during registration flow
-                        android.util.Log.d("TaxiApp", "Driver login successful - going to dashboard")
+                        // For driver logins, check if vehicle is registered
+                        android.util.Log.d("TaxiApp", "Driver login successful - checking vehicle status")
                         
-                        // Start auto-refresh to keep data synchronized
-                        startAutoRefresh()
+                        // Check if driver has a registered vehicle
+                        val hasVehicle = checkDriverHasVehicleRecord()
                         
-                        // Fetch driver's published trips
-                        fetchDriverTrips()
-                        
-                        _currentScreen.value = Screen.DriverDashboard
+                        if (hasVehicle) {
+                            android.util.Log.d("TaxiApp", "Driver has vehicle - going to dashboard")
+                            
+                            // Start auto-refresh to keep data synchronized
+                            startAutoRefresh()
+                            
+                            // Fetch driver's published trips
+                            fetchDriverTrips()
+                            
+                            // Load driver vehicle data
+                            loadDriverVehicle()
+                            
+                            _currentScreen.value = Screen.DriverDashboard
+                        } else {
+                            android.util.Log.d("TaxiApp", "Driver has no vehicle - going to vehicle setup")
+                            _currentScreen.value = Screen.DriverVehicleSetup
+                        }
                     } else {
                         _errorMessage.value = "Մուտք չհաջողվեց: Խնդրում ենք նորից փորձել:"
                     }
@@ -1327,10 +1357,12 @@ class TaxiViewModel(private val context: Context) : ViewModel() {
             val token = _authToken.value
             if (token != null) {
                 android.util.Log.d("TaxiApp", "Checking if driver has ever registered a vehicle")
-                val response = NetworkModule.apiService.getDriverVehicle("Bearer $token")
+                val response = NetworkModule.apiService.getDriverVehicle("Bearer $token", "application/json")
                 
                 if (response.isSuccessful) {
                     val vehicleResponse = response.body()
+                    android.util.Log.d("TaxiApp", "Vehicle API response: $vehicleResponse")
+                    
                     val vehicleData = vehicleResponse?.vehicle ?: vehicleResponse?.data
                     
                     // If driver has ANY vehicle record, they have used the API before
@@ -1338,17 +1370,24 @@ class TaxiViewModel(private val context: Context) : ViewModel() {
                     android.util.Log.d("TaxiApp", "Driver has vehicle record: $hasVehicleRecord")
                     
                     if (hasVehicleRecord) {
-                        android.util.Log.d("TaxiApp", "Vehicle found: brand=${vehicleData?.brand}, model=${vehicleData?.model}, photo=${vehicleData?.photo}")
+                        android.util.Log.d("TaxiApp", "Vehicle found: brand=${vehicleData?.brand}, model=${vehicleData?.model}, id=${vehicleData?.id}")
+                    } else {
+                        android.util.Log.d("TaxiApp", "No vehicle data found in response")
                     }
                     
                     return hasVehicleRecord
-                } else if (response.code() == 404) {
-                    // 404 typically means no vehicle record exists
-                    android.util.Log.d("TaxiApp", "No vehicle record found (404) - driver needs to register vehicle")
-                    return false
                 } else {
-                    android.util.Log.d("TaxiApp", "API error ${response.code()} - assuming no vehicle record")
-                    return false
+                    val errorBody = response.errorBody()?.string()
+                    android.util.Log.e("TaxiApp", "Vehicle API error ${response.code()}: $errorBody")
+                    
+                    if (response.code() == 404) {
+                        // 404 typically means no vehicle record exists
+                        android.util.Log.d("TaxiApp", "No vehicle record found (404) - driver needs to register vehicle")
+                        return false
+                    } else {
+                        android.util.Log.d("TaxiApp", "API error ${response.code()} - assuming no vehicle record")
+                        return false
+                    }
                 }
             } else {
                 android.util.Log.e("TaxiApp", "No auth token available")
@@ -1358,6 +1397,52 @@ class TaxiViewModel(private val context: Context) : ViewModel() {
             android.util.Log.e("TaxiApp", "Error checking driver vehicle: ${e.message}", e)
             // On error, assume no vehicle to be safe
             return false
+        }
+    }
+
+    // Load driver vehicle data
+    fun loadDriverVehicle() {
+        viewModelScope.launch {
+            try {
+                val token = _authToken.value
+                if (token != null) {
+                    android.util.Log.d("TaxiApp", "Loading driver vehicle data")
+                    val response = NetworkModule.apiService.getDriverVehicle("Bearer $token", "application/json")
+                    
+                    if (response.isSuccessful) {
+                        val vehicleResponse = response.body()
+                        val vehicleData = vehicleResponse?.vehicle ?: vehicleResponse?.data
+                        
+                        if (vehicleData != null) {
+                            // Convert VehicleData to Vehicle
+                            val vehicle = Vehicle(
+                                id = vehicleData.id.toString(),
+                                brand = vehicleData.brand,
+                                model = vehicleData.model,
+                                plate = vehicleData.plate,
+                                color = vehicleData.color,
+                                seats = vehicleData.seats,
+                                userId = null, // Not provided in API response
+                                isAvailable = true // Default to available
+                            )
+                            _driverVehicle.value = vehicle
+                            android.util.Log.d("TaxiApp", "Driver vehicle loaded: ${vehicleData.brand} ${vehicleData.model}")
+                        } else {
+                            _driverVehicle.value = null
+                            android.util.Log.d("TaxiApp", "No vehicle data found")
+                        }
+                    } else {
+                        android.util.Log.e("TaxiApp", "Failed to load driver vehicle: ${response.code()}")
+                        _driverVehicle.value = null
+                    }
+                } else {
+                    android.util.Log.e("TaxiApp", "No auth token available")
+                    _driverVehicle.value = null
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("TaxiApp", "Error loading driver vehicle", e)
+                _driverVehicle.value = null
+            }
         }
     }
 
@@ -1623,6 +1708,123 @@ class TaxiViewModel(private val context: Context) : ViewModel() {
         }
     }
 
+    // Fetch driver requests from API
+    fun fetchDriverRequests(status: String = "pending") {
+        viewModelScope.launch {
+            _isLoadingRequests.value = true
+            try {
+                val token = _authToken.value
+                if (token != null) {
+                    android.util.Log.d("TaxiApp", "Fetching driver requests with status: $status")
+                    
+                    val response = NetworkModule.apiService.getDriverRequests(
+                        token = "Bearer $token",
+                        status = status,
+                        perPage = 20
+                    )
+                    
+                    if (response.isSuccessful) {
+                        val requestsResponse = response.body()
+                        if (requestsResponse?.data != null) {
+                            _driverRequests.value = requestsResponse.data
+                            android.util.Log.d("TaxiApp", "Successfully loaded ${requestsResponse.data.size} driver requests")
+                        } else {
+                            android.util.Log.w("TaxiApp", "No requests data in response")
+                            _driverRequests.value = emptyList()
+                        }
+                    } else {
+                        android.util.Log.e("TaxiApp", "Failed to fetch driver requests: ${response.code()}")
+                        _errorMessage.value = "Չհաջողվեց բեռնել հայտերը"
+                    }
+                } else {
+                    android.util.Log.w("TaxiApp", "No auth token available for fetching driver requests")
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("TaxiApp", "Error fetching driver requests", e)
+                _errorMessage.value = "Ինտերնետ կապի խնդիր: Խնդրում ենք ստուգել ձեր կապը"
+            } finally {
+                _isLoadingRequests.value = false
+            }
+        }
+    }
+
+    // Accept driver request
+    fun acceptDriverRequest(requestId: String) {
+        viewModelScope.launch {
+            try {
+                val token = _authToken.value
+                if (token != null) {
+                    android.util.Log.d("TaxiApp", "Accepting driver request: $requestId")
+                    
+                    val response = NetworkModule.apiService.acceptDriverRequest(
+                        token = "Bearer $token",
+                        requestId = requestId
+                    )
+                    
+                    if (response.isSuccessful) {
+                        val actionResponse = response.body()
+                        android.util.Log.d("TaxiApp", "Accept API response: $actionResponse")
+                        _successMessage.value = "Հայտը ընդունվեց"
+                        // Refresh requests to update the list
+                        fetchDriverRequests()
+                        android.util.Log.d("TaxiApp", "Successfully accepted request: $requestId")
+                    } else {
+                        val actionResponse = response.body()
+                        android.util.Log.e("TaxiApp", "Failed to accept request: ${response.code()}")
+                        // Try to get the error message from the response body
+                        val errorMsg = actionResponse?.message ?: "Չհաջողվեց ընդունել հայտը"
+                        _errorMessage.value = when (errorMsg) {
+                            "no_capacity" -> "Ծանուցում․ Դուք արդեն ունեք 3 ակտիվ հայտ"
+                            else -> errorMsg
+                        }
+                    }
+                } else {
+                    android.util.Log.w("TaxiApp", "No auth token available for accepting request")
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("TaxiApp", "Error accepting driver request", e)
+                _errorMessage.value = "Ինտերնետ կապի խնդիր: Խնդրում ենք ստուգել ձեր կապը"
+            }
+        }
+    }
+
+    // Reject driver request
+    fun rejectDriverRequest(requestId: String) {
+        viewModelScope.launch {
+            try {
+                val token = _authToken.value
+                if (token != null) {
+                    android.util.Log.d("TaxiApp", "Rejecting driver request: $requestId")
+                    
+                    val response = NetworkModule.apiService.rejectDriverRequest(
+                        token = "Bearer $token",
+                        requestId = requestId
+                    )
+                    
+                    if (response.isSuccessful) {
+                        val actionResponse = response.body()
+                        android.util.Log.d("TaxiApp", "Reject API response: $actionResponse")
+                        _successMessage.value = "Հայտը մերժվեց"
+                        // Refresh requests to update the list
+                        fetchDriverRequests()
+                        android.util.Log.d("TaxiApp", "Successfully rejected request: $requestId")
+                    } else {
+                        val actionResponse = response.body()
+                        android.util.Log.e("TaxiApp", "Failed to reject request: ${response.code()}")
+                        // Try to get the error message from the response body
+                        val errorMsg = actionResponse?.message ?: "Չհաջողվեց մերժել հայտը"
+                        _errorMessage.value = errorMsg
+                    }
+                } else {
+                    android.util.Log.w("TaxiApp", "No auth token available for rejecting request")
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("TaxiApp", "Error rejecting driver request", e)
+                _errorMessage.value = "Ինտերնետ կապի խնդիր: Խնդրում ենք ստուգել ձեր կապը"
+            }
+        }
+    }
+
     private fun refreshData() {
         // Refresh trips data for all users
         loadTrips()
@@ -1632,9 +1834,10 @@ class TaxiViewModel(private val context: Context) : ViewModel() {
             loadMyRequests()
         }
         
-        // Refresh driver trips for drivers
+        // Refresh driver trips and requests for drivers
         if (_currentUser.value?.role == "driver") {
             fetchDriverTrips()
+            fetchDriverRequests()
         }
         
         // Additional refresh calls can be added here based on user role if needed
@@ -1645,6 +1848,92 @@ class TaxiViewModel(private val context: Context) : ViewModel() {
     fun refreshDataManually() {
         android.util.Log.d("TaxiApp", "Manual data refresh requested")
         refreshData()
+    }
+
+    // Amenities management
+    private val _amenities = MutableStateFlow<List<com.example.taxi_app.data.Amenity>>(emptyList())
+    val amenities: StateFlow<List<com.example.taxi_app.data.Amenity>> = _amenities.asStateFlow()
+
+    // Fetch amenities from API
+    fun fetchAmenities() {
+        viewModelScope.launch {
+            try {
+                val token = _authToken.value
+                if (token != null) {
+                    android.util.Log.d("TaxiApp", "Fetching amenities from API")
+                    
+                    val response = NetworkModule.apiService.getAmenities(
+                        token = "Bearer $token"
+                    )
+                    
+                    if (response.isSuccessful) {
+                        val amenitiesResponse = response.body()
+                        if (amenitiesResponse?.data != null) {
+                            _amenities.value = amenitiesResponse.data
+                            android.util.Log.d("TaxiApp", "Successfully loaded ${amenitiesResponse.data.size} amenities")
+                        } else {
+                            android.util.Log.w("TaxiApp", "No amenities data in response")
+                            _amenities.value = emptyList()
+                        }
+                    } else {
+                        android.util.Log.e("TaxiApp", "Failed to fetch amenities: ${response.code()}")
+                        _errorMessage.value = "Չհաջողվեց բեռնել հարմարությունները"
+                        _amenities.value = emptyList()
+                    }
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("TaxiApp", "Error fetching amenities", e)
+                _errorMessage.value = "Սխալ բեռնելիս հարմարությունները: ${e.message}"
+                _amenities.value = emptyList()
+            }
+        }
+    }
+
+    // Create new trip
+    fun createTrip(tripRequest: com.example.taxi_app.data.CreateTripRequest) {
+        viewModelScope.launch {
+            try {
+                _isLoading.value = true
+                val token = _authToken.value
+                if (token != null) {
+                    android.util.Log.d("TaxiApp", "Creating new trip")
+                    
+                    val response = NetworkModule.apiService.createTrip(
+                        token = "Bearer $token",
+                        request = tripRequest
+                    )
+                    
+                    if (response.isSuccessful) {
+                        val createResponse = response.body()
+                        if (createResponse?.data != null) {
+                            android.util.Log.d("TaxiApp", "Trip created successfully: ${createResponse.data.id}")
+                            _successMessage.value = "Երթուղին հաջողությամբ ստեղծվեց"
+                            
+                            // Refresh driver trips to show the new trip
+                            fetchDriverTrips()
+                            
+                            // Navigate back to dashboard
+                            navigateToScreen(Screen.DriverDashboard)
+                        } else {
+                            android.util.Log.w("TaxiApp", "No trip data in response")
+                            _errorMessage.value = createResponse?.message ?: "Չհաջողվեց ստեղծել երթուղին"
+                        }
+                    } else {
+                        android.util.Log.e("TaxiApp", "Failed to create trip: ${response.code()}")
+                        val errorBody = response.errorBody()?.string()
+                        android.util.Log.e("TaxiApp", "Error body: $errorBody")
+                        _errorMessage.value = "Չհաջողվեց ստեղծել երթուղին"
+                    }
+                } else {
+                    _errorMessage.value = "Չկա իսկականացում"
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("TaxiApp", "Error creating trip", e)
+                _errorMessage.value = "Սխալ ստեղծելիս երթուղին: ${e.message}"
+            } finally {
+                _isLoading.value = false
+            }
+        }
     }
 
     override fun onCleared() {

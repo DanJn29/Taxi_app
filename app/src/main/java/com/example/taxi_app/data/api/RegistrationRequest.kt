@@ -79,11 +79,12 @@ data class TripData(
     val seats_taken: Int,
     val pending_requests_count: Int,
     val vehicle: VehicleData,
-    val driver: DriverData,
+    val driver: DriverData?,
     val pay_methods: List<String>
 )
 
 data class VehicleData(
+    val id: Int,
     val brand: String,
     val model: String,
     val plate: String,
@@ -210,4 +211,66 @@ data class DriverTripData(
     val status: String,
     val pay_methods: List<String>,
     val pending_requests_count: Int
+)
+
+// Driver Requests API Response Models
+data class DriverRequestsResponse(
+    val data: List<DriverRequestData>,
+    val meta: RequestMeta,
+    val links: RequestLinks
+)
+
+data class DriverRequestData(
+    val id: Int,
+    val status: String,
+    val payment: String,
+    val seats: Int,
+    val passenger_name: String,
+    val phone: String,
+    val decided_by_user_id: Int?,
+    val decided_at: String?,
+    val trip: TripRequestData?
+)
+
+data class ClientData(
+    val id: Int,
+    val name: String,
+    val email: String,
+    val phone: String?,
+    val rating: Float?
+)
+
+data class TripRequestData(
+    val id: Int,
+    val from_addr: String,
+    val to_addr: String,
+    val departure_at: String,
+    val price_amd: Int,
+    val seats_requested: Int
+)
+
+data class RequestMeta(
+    val current_page: Int,
+    val from: Int?,
+    val last_page: Int,
+    val per_page: Int,
+    val to: Int?,
+    val total: Int
+)
+
+data class RequestLinks(
+    val first: String?,
+    val last: String?,
+    val prev: String?,
+    val next: String?
+)
+
+data class RequestActionResponse(
+    val message: String
+)
+
+// Amenities API response
+data class AmenitiesResponse(
+    val data: List<com.example.taxi_app.data.Amenity>,
+    val message: String? = null
 )

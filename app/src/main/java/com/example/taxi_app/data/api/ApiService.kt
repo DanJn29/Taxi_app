@@ -39,7 +39,8 @@ interface ApiService {
     
     @GET("driver/vehicle")
     suspend fun getDriverVehicle(
-        @Header("Authorization") token: String
+        @Header("Authorization") token: String,
+        @Header("Accept") accept: String = "application/json"
     ): Response<VehicleResponse>
     
     @GET("driver/trips")
@@ -48,6 +49,25 @@ interface ApiService {
         @Query("status") status: String = "published",
         @Query("per_page") perPage: Int = 20
     ): Response<DriverTripsResponse>
+    
+    @GET("driver/requests")
+    suspend fun getDriverRequests(
+        @Header("Authorization") token: String,
+        @Query("status") status: String = "pending",
+        @Query("per_page") perPage: Int = 20
+    ): Response<DriverRequestsResponse>
+    
+    @POST("driver/requests/{requestId}/accept")
+    suspend fun acceptDriverRequest(
+        @Header("Authorization") token: String,
+        @Path("requestId") requestId: String
+    ): Response<RequestActionResponse>
+    
+    @POST("driver/requests/{requestId}/reject")
+    suspend fun rejectDriverRequest(
+        @Header("Authorization") token: String,
+        @Path("requestId") requestId: String
+    ): Response<RequestActionResponse>
     
     @Multipart
     @POST("driver/vehicle")
@@ -60,4 +80,17 @@ interface ApiService {
         @Part("plate") plate: RequestBody,
         @Part photo: MultipartBody.Part?
     ): Response<VehicleResponse>
+    
+    // Get amenities list
+    @GET("amenities")
+    suspend fun getAmenities(
+        @Header("Authorization") token: String
+    ): Response<AmenitiesResponse>
+    
+    // Create new trip
+    @POST("driver/trips")
+    suspend fun createTrip(
+        @Header("Authorization") token: String,
+        @Body request: com.example.taxi_app.data.CreateTripRequest
+    ): Response<com.example.taxi_app.data.CreateTripResponse>
 }

@@ -1,6 +1,7 @@
 package com.example.taxi_app.ui.screens.driver
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -11,6 +12,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -28,6 +30,8 @@ fun DriverDashboardScreen(
     onAcceptTrip: (String) -> Unit,
     onToggleAvailability: () -> Unit,
     onViewEarnings: () -> Unit,
+    onViewRequests: () -> Unit,
+    onAddTrip: () -> Unit,
     onViewProfile: () -> Unit,
     onLogout: () -> Unit
 ) {
@@ -79,12 +83,31 @@ fun DriverDashboardScreen(
                             tint = TaxiBlack
                         )
                     }
-                    
-                    IconButton(onClick = onLogout) {
+
+                    // Add Trip Button - Beautiful design
+                    IconButton(
+                        onClick = onAddTrip,
+                        modifier = Modifier
+                            .size(48.dp)
+                            .background(
+                                color = TaxiBlue,
+                                shape = RoundedCornerShape(12.dp)
+                            )
+                    ) {
                         Icon(
-                            imageVector = Icons.Default.ExitToApp,
-                            contentDescription = "Դուրս գալ",
-                            tint = TaxiBlack
+                            imageVector = Icons.Default.Add,
+                            contentDescription = "Ավելացնել երթուղի",
+                            tint = Color.White,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+
+                    IconButton(onClick = onViewRequests) {
+                        Icon(
+                            imageVector = Icons.Default.Assignment,
+                            contentDescription = null,
+                            modifier = Modifier.size(24.dp), // Adjusted size to match other icons
+                            tint = TaxiBlack // Changed tint to match the design of other icons
                         )
                     }
                 },
@@ -175,6 +198,45 @@ fun DriverDashboardScreen(
                 }
             }
         }
+        
+//        item {
+//            // Driver Requests Card
+//            Card(
+//                modifier = Modifier
+//                    .fillMaxWidth()
+//                    .padding(horizontal = 16.dp),
+//                shape = RoundedCornerShape(16.dp),
+//                colors = CardDefaults.cardColors(containerColor = TaxiBlue.copy(alpha = 0.1f)),
+//                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+//            ) {
+//                Row(
+//                    modifier = Modifier
+//                        .fillMaxWidth()
+//                        .padding(20.dp),
+//                    horizontalArrangement = Arrangement.SpaceBetween,
+//                    verticalAlignment = Alignment.CenterVertically
+//                ) {
+//                    Column {
+//                        Text(
+//                            text = "Ուղևորների հայտեր",
+//                            fontSize = 16.sp,
+//                            fontWeight = FontWeight.Medium,
+//                            color = TaxiBlack
+//                        )
+//                        Text(
+//                            text = "Կարավարել հայտերը",
+//                            fontSize = 12.sp,
+//                            color = TaxiGray
+//                        )
+//                    }
+//
+//                    TaxiButton(
+//                        text = "Տեսնել հայտերը",
+//                        onClick = onViewRequests
+//                    )
+//                }
+//            }
+//        }
         
         item {
             Text(

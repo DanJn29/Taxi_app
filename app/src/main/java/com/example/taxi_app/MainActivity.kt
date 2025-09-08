@@ -61,6 +61,8 @@ fun TaxiApp() {
     val driverStats by viewModel.driverStats.collectAsState()
     val driverTrips by viewModel.driverTrips.collectAsState()
     val driverPublishedTrips by viewModel.driverPublishedTrips.collectAsState()
+    val driverVehicle by viewModel.driverVehicle.collectAsState()
+    val amenities by viewModel.amenities.collectAsState()
 
     when {
         appMode == null -> {
@@ -293,6 +295,8 @@ fun TaxiApp() {
                             onAcceptTrip = viewModel::acceptDriverTrip,
                             onToggleAvailability = viewModel::toggleDriverAvailability,
                             onViewEarnings = { viewModel.navigateToScreen(Screen.DriverEarnings) },
+                            onViewRequests = { viewModel.navigateToScreen(Screen.DriverRequests) },
+                            onAddTrip = { viewModel.navigateToScreen(Screen.AddTrip) },
                             onViewProfile = { viewModel.navigateToScreen(Screen.DriverProfile) },
                             onLogout = viewModel::logout
                         )
@@ -316,6 +320,24 @@ fun TaxiApp() {
                             onLogout = viewModel::logout
                         )
                     }
+                }
+                Screen.DriverRequests -> {
+                    DriverRequestsScreen(
+                        viewModel = viewModel,
+                        navigationScrollState = viewModel.navigationScrollState,
+                        onNavigate = { screen -> viewModel.navigateToScreen(screen) }
+                    )
+                }
+                Screen.AddTrip -> {
+                    AddTripScreen(
+                        amenities = amenities,
+                        driverVehicle = driverVehicle,
+                        currentMapLocation = currentMapLocation,
+                        onCreateTrip = viewModel::createTrip,
+                        onBack = { viewModel.navigateToScreen(Screen.DriverDashboard) },
+                        onLoadAmenities = viewModel::fetchAmenities,
+                        onMapLocationUpdate = viewModel::updateCurrentMapLocation
+                    )
                 }
                 else -> {}
             }

@@ -159,8 +159,10 @@ sealed class Screen(val route: String) {
     object DriverVehicleSetup : Screen("driver_vehicle_setup")
     object DriverDashboard : Screen("driver_dashboard")
     object DriverTrips : Screen("driver_trips")
+    object DriverRequests : Screen("driver_requests")
     object DriverEarnings : Screen("driver_earnings")
     object DriverProfile : Screen("driver_profile")
+    object AddTrip : Screen("add_trip")
 }
 
 // App modes
@@ -169,3 +171,44 @@ enum class AppMode {
     CLIENT,
     DRIVER
 }
+
+// Amenity data model
+data class Amenity(
+    val id: Int,
+    val name: String,
+    val icon: String? = null
+)
+
+// Trip creation request
+data class CreateTripRequest(
+    val vehicle_id: Int,
+    val from_addr: String,
+    val from_lat: Double,
+    val from_lng: Double,
+    val to_addr: String,
+    val to_lat: Double,
+    val to_lng: Double,
+    val departure_at: String, // ISO format: "2025-03-05T14:00:00Z"
+    val seats_total: Int,
+    val price_amd: Int,
+    val pay_methods: List<String>, // ["cash", "card"]
+    val status: String = "published",
+    val amenities: List<Int> = emptyList() // Amenity IDs
+)
+
+// Trip creation response
+data class CreateTripResponse(
+    val data: TripCreated?,
+    val message: String
+)
+
+data class TripCreated(
+    val id: Int,
+    val vehicle_id: Int,
+    val from_addr: String,
+    val to_addr: String,
+    val departure_at: String,
+    val seats_total: Int,
+    val price_amd: Int,
+    val status: String
+)
