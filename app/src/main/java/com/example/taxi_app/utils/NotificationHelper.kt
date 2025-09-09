@@ -19,6 +19,7 @@ class NotificationHelper(private val context: Context) {
         private const val CHANNEL_DESCRIPTION = "Notifications for taxi request status updates"
         private const val NOTIFICATION_ID_ACCEPTED = 1001
         private const val NOTIFICATION_ID_REJECTED = 1002
+        private const val NOTIFICATION_ID_NEW_DRIVER_REQUEST = 1003
     }
     
     init {
@@ -101,6 +102,38 @@ class NotificationHelper(private val context: Context) {
         try {
             NotificationManagerCompat.from(context).notify(NOTIFICATION_ID_REJECTED, notification)
             android.util.Log.d("TaxiApp", "Rejected notification sent successfully")
+        } catch (e: SecurityException) {
+            android.util.Log.e("TaxiApp", "Failed to send notification: ${e.message}")
+        }
+    }
+    
+    fun showNewDriverRequestNotification() {
+        val intent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            putExtra("open_driver_requests", true)
+        }
+        
+        val pendingIntent = PendingIntent.getActivity(
+            context, 
+            0, 
+            intent, 
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        
+        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setContentTitle("Նոր ճանապահության հայտ")
+            .setContentText("Ձեր ճանապահությունից նոր հայտ է ստացվել 🚗")
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(true)
+            .setContentIntent(pendingIntent)
+            .setVibrate(longArrayOf(0, 250, 250, 250))
+            .setDefaults(NotificationCompat.DEFAULT_SOUND)
+            .build()
+        
+        try {
+            NotificationManagerCompat.from(context).notify(NOTIFICATION_ID_NEW_DRIVER_REQUEST, notification)
+            android.util.Log.d("TaxiApp", "New driver request notification sent successfully")
         } catch (e: SecurityException) {
             android.util.Log.e("TaxiApp", "Failed to send notification: ${e.message}")
         }

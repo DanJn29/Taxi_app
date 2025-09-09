@@ -1,5 +1,7 @@
 package com.example.taxi_app.ui.screens.driver
 
+import androidx.compose.animation.*
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -16,6 +18,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -33,10 +36,14 @@ fun AddTripScreen(
     amenities: List<Amenity>,
     driverVehicle: Vehicle?,
     currentMapLocation: GeoPoint?,
+    successMessage: String?,
+    errorMessage: String?,
     onCreateTrip: (CreateTripRequest) -> Unit,
     onBack: () -> Unit,
     onLoadAmenities: () -> Unit,
-    onMapLocationUpdate: (GeoPoint) -> Unit
+    onMapLocationUpdate: (GeoPoint) -> Unit,
+    onClearSuccess: () -> Unit,
+    onClearError: () -> Unit
 ) {
     // Form state
     var fromAddress by remember { mutableStateOf("") }
@@ -55,6 +62,22 @@ fun AddTripScreen(
         onLoadAmenities()
     }
 
+    // Handle success message
+    LaunchedEffect(successMessage) {
+        successMessage?.let {
+            kotlinx.coroutines.delay(3000) // Show for 3 seconds
+            onClearSuccess()
+        }
+    }
+
+    // Handle error message
+    LaunchedEffect(errorMessage) {
+        errorMessage?.let {
+            kotlinx.coroutines.delay(3000) // Show for 3 seconds
+            onClearError()
+        }
+    }
+
     // Validation
     val isFormValid = fromAddress.isNotBlank() && 
                      toAddress.isNotBlank() && 
@@ -67,27 +90,36 @@ fun AddTripScreen(
                      fromLocation != null &&
                      toLocation != null
 
-    LazyColumn(
+    Column(
         modifier = Modifier
             .fillMaxSize()
             .background(TaxiBackground)
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+            .statusBarsPadding()
     ) {
-        item {
-            // Header
+        // Header with back button
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            color = Color.White,
+            shadowElevation = 4.dp
+        ) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = onBack) {
+                IconButton(
+                    onClick = onBack,
+                    modifier = Modifier.size(40.dp)
+                ) {
                     Icon(
                         imageVector = Icons.Default.ArrowBack,
                         contentDescription = "Վերադառնալ",
-                        tint = TaxiBlue
+                        tint = TaxiBlue,
+                        modifier = Modifier.size(24.dp)
                     )
                 }
-                Spacer(modifier = Modifier.width(8.dp))
+                Spacer(modifier = Modifier.width(12.dp))
                 Text(
                     text = "Ավելացնել երթուղի",
                     fontSize = 20.sp,
@@ -96,6 +128,116 @@ fun AddTripScreen(
                 )
             }
         }
+
+        // Success Message - Prominent inline display
+        successMessage?.let { message ->
+            AnimatedVisibility(
+                visible = true,
+                enter = slideInVertically(
+                    initialOffsetY = { -it },
+                    animationSpec = tween(300)
+                ) + fadeIn(animationSpec = tween(300))
+            ) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = Color(0xFF4CAF50)
+                    ),
+                    shape = RoundedCornerShape(16.dp),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(20.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CheckCircle,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(28.dp)
+                        )
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Column {
+                            Text(
+                                text = "Հաջողություն!",
+                                color = Color.White,
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = message,
+                                color = Color.White,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // Error Message - Red inline display
+        errorMessage?.let { message ->
+            AnimatedVisibility(
+                visible = true,
+                enter = slideInVertically(
+                    initialOffsetY = { -it },
+                    animationSpec = tween(300)
+                ) + fadeIn(animationSpec = tween(300))
+            ) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = Color(0xFFE53E3E)
+                    ),
+                    shape = RoundedCornerShape(16.dp),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(20.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Cancel,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(28.dp)
+                        )
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Column {
+                            Text(
+                                text = "Մերժում!",
+                                color = Color.White,
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = message,
+                                color = Color.White,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .weight(1f),
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
 
         item {
             // Vehicle info
@@ -362,61 +504,65 @@ fun AddTripScreen(
             }
         }
 
-        // Create button
-        item {
-            Spacer(modifier = Modifier.height(16.dp))
-            
-            Button(
-                onClick = {
-                    if (isFormValid && driverVehicle != null && fromLocation != null && toLocation != null) {
-                        val departureDateTime = "${departureDate}T${departureTime}:00Z"
-                        
-                        val tripRequest = CreateTripRequest(
-                            vehicle_id = driverVehicle.id.toIntOrNull() ?: 0,
-                            from_addr = fromAddress,
-                            from_lat = fromLocation!!.latitude,
-                            from_lng = fromLocation!!.longitude,
-                            to_addr = toAddress,
-                            to_lat = toLocation!!.latitude,
-                            to_lng = toLocation!!.longitude,
-                            departure_at = departureDateTime,
-                            seats_total = seatsTotal.toIntOrNull() ?: 1,
-                            price_amd = priceAmd.toIntOrNull() ?: 0,
-                            pay_methods = selectedPayMethods.toList(),
-                            status = "published",
-                            amenities = selectedAmenities.toList()
-                        )
-                        
-                        onCreateTrip(tripRequest)
-                    }
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp),
-                enabled = isFormValid,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = TaxiBlue,
-                    disabledContainerColor = TaxiGray
-                ),
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center
+            item {
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Button(
+                    onClick = {
+                        if (isFormValid && driverVehicle != null && fromLocation != null && toLocation != null) {
+                            val departureDateTime = "${departureDate}T${departureTime}:00Z"
+
+                            val tripRequest = CreateTripRequest(
+                                vehicle_id = driverVehicle.id.toIntOrNull() ?: 0,
+                                from_addr = fromAddress,
+                                from_lat = fromLocation!!.latitude,
+                                from_lng = fromLocation!!.longitude,
+                                to_addr = toAddress,
+                                to_lat = toLocation!!.latitude,
+                                to_lng = toLocation!!.longitude,
+                                departure_at = departureDateTime,
+                                seats_total = seatsTotal.toIntOrNull() ?: 1,
+                                price_amd = priceAmd.toIntOrNull() ?: 0,
+                                pay_methods = selectedPayMethods.toList(),
+                                status = "published",
+                                amenities = selectedAmenities.toList()
+                            )
+
+                            onCreateTrip(tripRequest)
+                            onBack() // Navigate back to DriverDashboardScreen
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp),
+                    enabled = isFormValid,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = TaxiBlue,
+                        disabledContainerColor = TaxiGray
+                    ),
+                    shape = RoundedCornerShape(12.dp)
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Add,
-                        contentDescription = null,
-                        tint = Color.White
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "Ստեղծել երթուղի",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = Color.White
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = null,
+                            tint = Color.White
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Ստեղծել երթուղի",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = Color.White
+                        )
+                    }
                 }
+
+                // Bottom padding for navigation bar
+                Spacer(modifier = Modifier.navigationBarsPadding())
             }
         }
     }

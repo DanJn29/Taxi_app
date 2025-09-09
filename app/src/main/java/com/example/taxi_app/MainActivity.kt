@@ -63,6 +63,7 @@ fun TaxiApp() {
     val driverPublishedTrips by viewModel.driverPublishedTrips.collectAsState()
     val driverVehicle by viewModel.driverVehicle.collectAsState()
     val amenities by viewModel.amenities.collectAsState()
+    val driverRequestNotificationCount by viewModel.driverRequestNotificationCount.collectAsState()
 
     when {
         appMode == null -> {
@@ -292,13 +293,24 @@ fun TaxiApp() {
                             stats = driverStats,
                             availableTrips = driverTrips.filter { it.status == "published" },
                             publishedTrips = driverPublishedTrips,
+                            driverVehicle = driverVehicle,
                             onAcceptTrip = viewModel::acceptDriverTrip,
-                            onToggleAvailability = viewModel::toggleDriverAvailability,
                             onViewEarnings = { viewModel.navigateToScreen(Screen.DriverEarnings) },
                             onViewRequests = { viewModel.navigateToScreen(Screen.DriverRequests) },
                             onAddTrip = { viewModel.navigateToScreen(Screen.AddTrip) },
                             onViewProfile = { viewModel.navigateToScreen(Screen.DriverProfile) },
-                            onLogout = viewModel::logout
+                            onLogout = viewModel::logout,
+                            onShowMessage = { message ->
+                                // Show toast message
+                                android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_LONG).show()
+                            },
+                            onReloadVehicle = { viewModel.loadDriverVehicle() },
+                            successMessage = successMessage,
+                            onClearSuccessMessage = viewModel::clearSuccessMessage,
+                            errorMessage = errorMessage,
+                            onClearErrorMessage = viewModel::clearErrorMessage,
+                            driverRequestNotificationCount = driverRequestNotificationCount,
+                            onClearDriverRequestNotifications = viewModel::clearDriverRequestNotifications
                         )
                     }
                 }
@@ -317,6 +329,7 @@ fun TaxiApp() {
                             driver = driver,
                             stats = driverStats,
                             onBack = { viewModel.navigateToScreen(Screen.DriverDashboard) },
+                            onToggleAvailability = viewModel::toggleDriverAvailability,
                             onLogout = viewModel::logout
                         )
                     }
@@ -333,10 +346,14 @@ fun TaxiApp() {
                         amenities = amenities,
                         driverVehicle = driverVehicle,
                         currentMapLocation = currentMapLocation,
+                        successMessage = successMessage,
+                        errorMessage = errorMessage,
                         onCreateTrip = viewModel::createTrip,
                         onBack = { viewModel.navigateToScreen(Screen.DriverDashboard) },
                         onLoadAmenities = viewModel::fetchAmenities,
-                        onMapLocationUpdate = viewModel::updateCurrentMapLocation
+                        onMapLocationUpdate = viewModel::updateCurrentMapLocation,
+                        onClearSuccess = viewModel::clearSuccessMessage,
+                        onClearError = viewModel::clearErrorMessage
                     )
                 }
                 else -> {}

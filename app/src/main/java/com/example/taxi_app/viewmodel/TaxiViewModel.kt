@@ -17,6 +17,7 @@ import com.example.taxi_app.data.api.DriverTripsResponse
 import com.example.taxi_app.data.api.DriverTripData
 import com.example.taxi_app.data.api.DriverRequestData
 import com.example.taxi_app.data.api.VehicleResponse
+import com.example.taxi_app.data.api.VehicleData
 import com.example.taxi_app.data.api.BookingRequest
 import com.example.taxi_app.data.api.BookingResponse
 import com.example.taxi_app.data.api.RequestsResponse
@@ -159,6 +160,13 @@ class TaxiViewModel(private val context: Context) : ViewModel() {
     
     private val _latestNotificationMessage = MutableStateFlow<String?>(null)
     val latestNotificationMessage: StateFlow<String?> = _latestNotificationMessage.asStateFlow()
+
+    // Driver Notification States
+    private val _hasNewDriverRequests = MutableStateFlow(false)
+    val hasNewDriverRequests: StateFlow<Boolean> = _hasNewDriverRequests.asStateFlow()
+    
+    private val _driverRequestNotificationCount = MutableStateFlow(0)
+    val driverRequestNotificationCount: StateFlow<Int> = _driverRequestNotificationCount.asStateFlow()
 
     // Driver Data
     private val _driverStats = MutableStateFlow(
@@ -460,16 +468,14 @@ class TaxiViewModel(private val context: Context) : ViewModel() {
                     tripsResponse?.let { apiResponse ->
                         // Convert API trips to local Trip objects
                         val convertedTrips = apiResponse.data.mapNotNull { tripData ->
-                            // Skip trips without driver data to avoid null pointer exceptions
-                            if (tripData.driver == null) {
-                                android.util.Log.w("TaxiApp", "Skipping trip ${tripData.id} due to missing driver data")
-                                return@mapNotNull null
-                            }
+                            // For trips without assigned driver, create trip with placeholder driver info
+                            val driverId = tripData.driver?.id?.toString() ?: tripData.user_id?.toString() ?: "unknown"
+                            val driverName = tripData.driver?.name ?: "Driver"
                             
                             Trip(
                                 id = tripData.id.toString(),
-                                vehicleId = "",
-                                assignedDriverId = tripData.driver.id.toString(),
+                                vehicleId = tripData.vehicle_id?.toString() ?: "",
+                                assignedDriverId = driverId,
                                 fromAddr = tripData.from_addr,
                                 toAddr = tripData.to_addr,
                                 fromLat = tripData.from_lat,
@@ -479,22 +485,40 @@ class TaxiViewModel(private val context: Context) : ViewModel() {
                                 priceAmd = tripData.price_amd,
                                 seatsTotal = tripData.seats_total,
                                 seatsTaken = tripData.seats_taken,
-                                status = "published", // API trips are published
+                                status = tripData.status ?: "published", // Use API status or default to published
                                 departureAt = formatDepartureTime(tripData.departure_at),
                                 payMethods = tripData.pay_methods,
-                                vehicle = Vehicle(
+                                vehicle = tripData.vehicle?.let { vehicleData ->
+                                    Vehicle(
+                                        id = vehicleData.id?.toString() ?: "",
+                                        brand = vehicleData.brand ?: "",
+                                        model = vehicleData.model ?: "",
+                                        plate = vehicleData.plate ?: "",
+                                        color = hexToArmenianColor(vehicleData.color ?: ""),
+                                        seats = vehicleData.seats ?: 4,
+                                        userId = tripData.user_id?.toString() ?: driverId,
+                                        isAvailable = true
+                                    )
+                                } ?: Vehicle(
                                     id = "",
-                                    brand = tripData.vehicle.brand,
-                                    model = tripData.vehicle.model,
-                                    plate = tripData.vehicle.plate,
-                                    color = hexToArmenianColor(tripData.vehicle.color),
-                                    seats = tripData.vehicle.seats,
-                                    userId = tripData.driver.id.toString(),
+                                    brand = "Unknown",
+                                    model = "Unknown",
+                                    plate = "",
+                                    color = "Unknown",
+                                    seats = 4,
+                                    userId = driverId,
                                     isAvailable = true
                                 ),
-                                driver = User(
-                                    id = tripData.driver.id.toString(),
-                                    name = tripData.driver.name,
+                                driver = tripData.driver?.let { driverData ->
+                                    User(
+                                        id = driverData.id?.toString() ?: driverId,
+                                        name = driverData.name ?: driverName,
+                                        email = driverData.email ?: "",
+                                        role = "driver"
+                                    )
+                                } ?: User(
+                                    id = driverId,
+                                    name = driverName,
                                     email = "",
                                     role = "driver"
                                 )
@@ -660,6 +684,11 @@ class TaxiViewModel(private val context: Context) : ViewModel() {
 
     fun clearSuccessMessage() {
         _successMessage.value = null
+    }
+
+    fun clearDriverRequestNotifications() {
+        _hasNewDriverRequests.value = false
+        _driverRequestNotificationCount.value = 0
     }
 
     fun selectTrip(trip: Trip) {
@@ -918,6 +947,12 @@ class TaxiViewModel(private val context: Context) : ViewModel() {
     // Navigation functions
     fun navigateToScreen(screen: Screen) {
         _currentScreen.value = screen
+        
+        // If navigating to driver dashboard, ensure vehicle data is up to date
+        if (screen == Screen.DriverDashboard && _appMode.value == AppMode.DRIVER) {
+            android.util.Log.d("TaxiApp", "Navigating to DriverDashboard - loading vehicle data")
+            loadDriverVehicle()
+        }
     }
 
     // Company functions
@@ -1363,14 +1398,31 @@ class TaxiViewModel(private val context: Context) : ViewModel() {
                     val vehicleResponse = response.body()
                     android.util.Log.d("TaxiApp", "Vehicle API response: $vehicleResponse")
                     
-                    val vehicleData = vehicleResponse?.vehicle ?: vehicleResponse?.data
+                    // Try different ways to get vehicle data based on API response structure
+                    val vehicleData = when {
+                        vehicleResponse?.vehicle != null -> vehicleResponse.vehicle
+                        vehicleResponse?.data != null -> vehicleResponse.data
+                        // Check if response contains direct vehicle fields
+                        vehicleResponse?.id != null -> VehicleData(
+                            id = vehicleResponse.id,
+                            brand = vehicleResponse.brand ?: "",
+                            model = vehicleResponse.model ?: "",
+                            seats = vehicleResponse.seats ?: 0,
+                            color = vehicleResponse.color ?: "",
+                            plate = vehicleResponse.plate ?: "",
+                            status = vehicleResponse.status,
+                            photo_path = vehicleResponse.photo_path,
+                            photo_url = vehicleResponse.photo_url
+                        )
+                        else -> null
+                    }
                     
                     // If driver has ANY vehicle record, they have used the API before
                     val hasVehicleRecord = vehicleData != null
                     android.util.Log.d("TaxiApp", "Driver has vehicle record: $hasVehicleRecord")
                     
                     if (hasVehicleRecord) {
-                        android.util.Log.d("TaxiApp", "Vehicle found: brand=${vehicleData?.brand}, model=${vehicleData?.model}, id=${vehicleData?.id}")
+                        android.util.Log.d("TaxiApp", "Vehicle found: brand=${vehicleData?.brand}, model=${vehicleData?.model}, id=${vehicleData?.id}, status=${vehicleData?.status}")
                     } else {
                         android.util.Log.d("TaxiApp", "No vehicle data found in response")
                     }
@@ -1406,24 +1458,45 @@ class TaxiViewModel(private val context: Context) : ViewModel() {
             try {
                 val token = _authToken.value
                 if (token != null) {
-                    android.util.Log.d("TaxiApp", "Loading driver vehicle data")
+                    android.util.Log.d("TaxiApp", "Loading driver vehicle data with token: Bearer ${token.take(10)}...")
+                    android.util.Log.d("TaxiApp", "Making API call to: http://api.tamojni.com/api/driver/vehicle")
                     val response = NetworkModule.apiService.getDriverVehicle("Bearer $token", "application/json")
+                    android.util.Log.d("TaxiApp", "API response code: ${response.code()}")
                     
                     if (response.isSuccessful) {
                         val vehicleResponse = response.body()
-                        val vehicleData = vehicleResponse?.vehicle ?: vehicleResponse?.data
+                        android.util.Log.d("TaxiApp", "API response body: $vehicleResponse")
+                        
+                        // Try different ways to get vehicle data based on API response structure
+                        val vehicleData = when {
+                            vehicleResponse?.vehicle != null -> vehicleResponse.vehicle
+                            vehicleResponse?.data != null -> vehicleResponse.data
+                            // Check if response contains direct vehicle fields
+                            vehicleResponse?.id != null -> VehicleData(
+                                id = vehicleResponse.id,
+                                brand = vehicleResponse.brand ?: "",
+                                model = vehicleResponse.model ?: "",
+                                seats = vehicleResponse.seats ?: 0,
+                                color = vehicleResponse.color ?: "",
+                                plate = vehicleResponse.plate ?: "",
+                                status = vehicleResponse.status,
+                                photo_path = vehicleResponse.photo_path,
+                                photo_url = vehicleResponse.photo_url
+                            )
+                            else -> null
+                        }
                         
                         if (vehicleData != null) {
                             // Convert VehicleData to Vehicle
                             val vehicle = Vehicle(
-                                id = vehicleData.id.toString(),
-                                brand = vehicleData.brand,
-                                model = vehicleData.model,
-                                plate = vehicleData.plate,
-                                color = vehicleData.color,
-                                seats = vehicleData.seats,
+                                id = vehicleData.id?.toString() ?: "",
+                                brand = vehicleData.brand ?: "Unknown",
+                                model = vehicleData.model ?: "Unknown",
+                                plate = vehicleData.plate ?: "",
+                                color = vehicleData.color ?: "",
+                                seats = vehicleData.seats ?: 4,
                                 userId = null, // Not provided in API response
-                                isAvailable = true // Default to available
+                                isAvailable = vehicleData.status == "active"
                             )
                             _driverVehicle.value = vehicle
                             android.util.Log.d("TaxiApp", "Driver vehicle loaded: ${vehicleData.brand} ${vehicleData.model}")
@@ -1726,6 +1799,31 @@ class TaxiViewModel(private val context: Context) : ViewModel() {
                     if (response.isSuccessful) {
                         val requestsResponse = response.body()
                         if (requestsResponse?.data != null) {
+                            // Check for new requests before updating
+                            val previousRequests = _driverRequests.value
+                            val newRequests = requestsResponse.data
+                            
+                            // Check for newly pending requests for drivers
+                            val previousPendingCount = previousRequests.count { 
+                                it.status.lowercase() == "pending" 
+                            }
+                            val newPendingCount = newRequests.count { 
+                                it.status.lowercase() == "pending" 
+                            }
+                            
+                            // If there are new pending requests, increment notification count
+                            if (newPendingCount > previousPendingCount && previousRequests.isNotEmpty()) {
+                                val newDriverRequestsCount = newPendingCount - previousPendingCount
+                                _driverRequestNotificationCount.value += newDriverRequestsCount
+                                _hasNewDriverRequests.value = true
+                                _latestNotificationMessage.value = "Նոր հայտ ճանապահությունից 🚗"
+                                
+                                // Send push notification for new driver request
+                                notificationHelper.showNewDriverRequestNotification()
+                                
+                                android.util.Log.d("TaxiApp", "Found $newDriverRequestsCount new driver requests")
+                            }
+                            
                             _driverRequests.value = requestsResponse.data
                             android.util.Log.d("TaxiApp", "Successfully loaded ${requestsResponse.data.size} driver requests")
                         } else {
@@ -1804,7 +1902,7 @@ class TaxiViewModel(private val context: Context) : ViewModel() {
                     if (response.isSuccessful) {
                         val actionResponse = response.body()
                         android.util.Log.d("TaxiApp", "Reject API response: $actionResponse")
-                        _successMessage.value = "Հայտը մերժվեց"
+                        _errorMessage.value = "Հայտը մերժվեց"
                         // Refresh requests to update the list
                         fetchDriverRequests()
                         android.util.Log.d("TaxiApp", "Successfully rejected request: $requestId")

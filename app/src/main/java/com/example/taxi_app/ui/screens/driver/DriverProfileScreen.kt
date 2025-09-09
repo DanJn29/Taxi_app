@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -31,6 +32,7 @@ fun DriverProfileScreen(
     driver: User,
     stats: DriverStats,
     onBack: () -> Unit,
+    onToggleAvailability: () -> Unit,
     onLogout: () -> Unit
 ) {
     Column(
@@ -152,6 +154,78 @@ fun DriverProfileScreen(
                             text = " (${driver.totalTrips} ճանապարհորդություն)",
                             fontSize = 14.sp,
                             color = Color.Gray
+                        )
+                    }
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            // Availability Toggle Section
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = Color.White
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(20.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .clip(CircleShape)
+                                    .background(
+                                        if (stats.isAvailable) 
+                                            Color(0xFF4CAF50).copy(alpha = 0.2f) 
+                                        else 
+                                            Color(0xFFFF5722).copy(alpha = 0.2f)
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = if (stats.isAvailable) Icons.Default.CheckCircle else Icons.Default.PauseCircle,
+                                    contentDescription = null,
+                                    tint = if (stats.isAvailable) Color(0xFF4CAF50) else Color(0xFFFF5722),
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                            
+                            Spacer(modifier = Modifier.width(16.dp))
+                            
+                            Column {
+                                Text(
+                                    text = "Հասանելիություն",
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.Black
+                                )
+                                Text(
+                                    text = if (stats.isAvailable) "Հասանելի եք նոր հայտերի համար" else "Նոր հայտեր չեք ստանալու",
+                                    fontSize = 12.sp,
+                                    color = Color.Gray
+                                )
+                            }
+                        }
+                        
+                        Switch(
+                            checked = stats.isAvailable,
+                            onCheckedChange = { onToggleAvailability() },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = TaxiYellow,
+                                checkedTrackColor = Color(0xFF4CAF50),
+                                uncheckedThumbColor = Color.White,
+                                uncheckedTrackColor = Color.Gray
+                            )
                         )
                     }
                 }

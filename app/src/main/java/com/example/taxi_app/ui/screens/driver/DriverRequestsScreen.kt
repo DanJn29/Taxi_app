@@ -79,6 +79,8 @@ fun DriverRequestsScreen(
 
     LaunchedEffect(Unit) {
         viewModel.fetchDriverRequests()
+        // Clear driver request notifications when this screen is opened
+        viewModel.clearDriverRequestNotifications()
     }
 
     // Show error message

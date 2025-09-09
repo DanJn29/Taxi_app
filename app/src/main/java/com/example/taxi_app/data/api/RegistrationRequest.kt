@@ -67,6 +67,8 @@ data class TripsResponse(
 
 data class TripData(
     val id: Int,
+    val user_id: Int?,
+    val vehicle_id: Int?,
     val from_addr: String,
     val to_addr: String,
     val from_lat: Double,
@@ -77,25 +79,56 @@ data class TripData(
     val price_amd: Int,
     val seats_total: Int,
     val seats_taken: Int,
-    val pending_requests_count: Int,
-    val vehicle: VehicleData,
-    val driver: DriverData?,
-    val pay_methods: List<String>
+    val pending_requests_count: Int? = null,
+    val vehicle: VehicleData? = null,
+    val driver: DriverData? = null,
+    val pay_methods: List<String>,
+    val status: String? = null,
+    val company_id: Int? = null,
+    val assigned_driver_id: Int? = null,
+    val driver_state: String? = null,
+    val driver_started_at: String? = null,
+    val driver_finished_at: String? = null,
+    val amenities: List<AmenityData>? = null
+)
+
+data class AmenityData(
+    val id: Int,
+    val name: String,
+    val slug: String,
+    val icon: String,
+    val is_active: Boolean,
+    val category: CategoryData? = null,
+    val pivot: PivotData? = null
+)
+
+data class CategoryData(
+    val id: Int,
+    val name: String,
+    val slug: String
+)
+
+data class PivotData(
+    val selected_at: String? = null,
+    val notes: String? = null
 )
 
 data class VehicleData(
-    val id: Int,
-    val brand: String,
-    val model: String,
-    val plate: String,
-    val color: String,
-    val seats: Int,
-    val photo: String? = null // URL to the vehicle photo
+    val id: Int? = null,
+    val brand: String? = null,
+    val model: String? = null,
+    val seats: Int? = null,
+    val color: String? = null,
+    val plate: String? = null,
+    val status: String? = null,
+    val photo_path: String? = null,
+    val photo_url: String? = null
 )
 
 data class DriverData(
-    val name: String,
-    val id: Int
+    val name: String? = null,
+    val id: Int? = null,
+    val email: String? = null
 )
 
 data class TripMeta(
@@ -119,7 +152,16 @@ data class VehicleResponse(
     val errors: Map<String, List<String>>? = null,
     val success: Boolean? = null,
     val status: String? = null,
-    val data: VehicleData? = null // Some APIs return data instead of vehicle
+    val data: VehicleData? = null, // Some APIs return data instead of vehicle
+    // Direct vehicle data fields (for when API returns vehicle directly)
+    val id: Int? = null,
+    val brand: String? = null,
+    val model: String? = null,
+    val seats: Int? = null,
+    val color: String? = null,
+    val plate: String? = null,
+    val photo_path: String? = null,
+    val photo_url: String? = null
 )
 
 // Booking Request and Response
