@@ -2,6 +2,7 @@ package com.example.taxi_app.ui.screens.driver
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -175,7 +176,8 @@ fun DriverRequestsScreen(
                 RequestCard(
                     request = request,
                     onAccept = { viewModel.acceptDriverRequest(request.id.toString()) },
-                    onReject = { viewModel.rejectDriverRequest(request.id.toString()) }
+                    onReject = { viewModel.rejectDriverRequest(request.id.toString()) },
+                    onClick = { viewModel.navigateToTripDetailsFromRequest(request) }
                 )
             }
         }
@@ -284,7 +286,8 @@ private fun EmptyRequestsSection() {
 private fun RequestCard(
     request: DriverRequestData,
     onAccept: () -> Unit,
-    onReject: () -> Unit
+    onReject: () -> Unit,
+    onClick: () -> Unit
 ) {
     val configuration = LocalConfiguration.current
     val screenWidth = configuration.screenWidthDp.dp
@@ -303,7 +306,8 @@ private fun RequestCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .border(1.dp, TaxiLightGray, RoundedCornerShape(cornerRadius)),
+            .border(1.dp, TaxiLightGray, RoundedCornerShape(cornerRadius))
+            .clickable { onClick() },
         shape = RoundedCornerShape(cornerRadius),
         colors = CardDefaults.cardColors(containerColor = TaxiWhite),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
@@ -564,12 +568,12 @@ private fun TripInfoSection(
                         )
                     }
                     
-                    Text(
-                        text = "${trip.price_amd} դր.",
-                        fontSize = bodyFontSize,
-                        fontWeight = FontWeight.Bold,
-                        color = TaxiBlue
-                    )
+//                    Text(
+//                        text = "${trip.price_amd} դր.",
+//                        fontSize = bodyFontSize,
+//                        fontWeight = FontWeight.Bold,
+//                        color = TaxiBlue
+//                    )
                 }
                 
                 Spacer(modifier = Modifier.height(4.dp))

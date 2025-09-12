@@ -50,6 +50,12 @@ interface ApiService {
         @Query("per_page") perPage: Int = 20
     ): Response<DriverTripsResponse>
     
+    @GET("driver/trips/{tripId}")
+    suspend fun getDriverTripById(
+        @Header("Authorization") token: String,
+        @Path("tripId") tripId: Int
+    ): Response<DriverTripDetailsResponse>
+    
     @GET("driver/requests")
     suspend fun getDriverRequests(
         @Header("Authorization") token: String,

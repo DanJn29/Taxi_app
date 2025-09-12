@@ -163,6 +163,7 @@ sealed class Screen(val route: String) {
     object DriverEarnings : Screen("driver_earnings")
     object DriverProfile : Screen("driver_profile")
     object AddTrip : Screen("add_trip")
+    object TripDetails : Screen("trip_details")
 }
 
 // App modes

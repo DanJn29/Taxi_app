@@ -238,6 +238,10 @@ data class DriverTripsResponse(
     val links: TripLinks
 )
 
+data class DriverTripDetailsResponse(
+    val data: DriverTripData
+)
+
 data class DriverTripData(
     val id: Int,
     val from_addr: String,
@@ -252,7 +256,16 @@ data class DriverTripData(
     val seats_taken: Int,
     val status: String,
     val pay_methods: List<String>,
-    val pending_requests_count: Int
+    val pending_requests_count: Int,
+    val amenities: List<TripAmenity>? = null,
+    val amenity_ids: List<Int>? = null
+)
+
+data class TripAmenity(
+    val id: Int,
+    val amenity_category_id: Int,
+    val name: String,
+    val slug: String
 )
 
 // Driver Requests API Response Models

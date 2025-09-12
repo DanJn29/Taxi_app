@@ -188,6 +188,10 @@ class TaxiViewModel(private val context: Context) : ViewModel() {
     private val _driverPublishedTrips = MutableStateFlow<List<DriverTripData>>(emptyList())
     val driverPublishedTrips: StateFlow<List<DriverTripData>> = _driverPublishedTrips.asStateFlow()
 
+    // Selected Trip for Details View
+    private val _selectedDriverTrip = MutableStateFlow<DriverTripData?>(null)
+    val selectedDriverTrip: StateFlow<DriverTripData?> = _selectedDriverTrip.asStateFlow()
+
     // Driver Vehicle
     private val _driverVehicle = MutableStateFlow<Vehicle?>(null)
     val driverVehicle: StateFlow<Vehicle?> = _driverVehicle.asStateFlow()
@@ -953,6 +957,100 @@ class TaxiViewModel(private val context: Context) : ViewModel() {
             android.util.Log.d("TaxiApp", "Navigating to DriverDashboard - loading vehicle data")
             loadDriverVehicle()
         }
+    }
+
+    fun setSelectedTrip(trip: DriverTripData) {
+        _selectedDriverTrip.value = trip
+    }
+
+    fun navigateToTripDetails(trip: DriverTripData) {
+        setSelectedTrip(trip)
+        navigateToScreen(Screen.TripDetails)
+    }
+
+    // Navigate to trip details from request by fetching full trip data
+    fun navigateToTripDetailsFromRequest(request: DriverRequestData) {
+        request.trip?.let { tripData ->
+            viewModelScope.launch {
+                try {
+                    _isLoading.value = true
+                    _errorMessage.value = null
+                    
+                    val token = _authToken.value
+                    if (token.isNullOrEmpty()) {
+                        android.util.Log.e("TaxiApp", "No auth token available for trip details")
+                        return@launch
+                    }
+                    
+                    val response = NetworkModule.apiService.getDriverTripById("Bearer $token", tripData.id)
+                    
+                    if (response.isSuccessful) {
+                        response.body()?.let { tripDetailsResponse ->
+                            navigateToTripDetails(tripDetailsResponse.data)
+                        } ?: run {
+                            // Fallback to converted data if API response is empty
+                            val fallbackTripData = convertRequestToTripData(request)
+                            navigateToTripDetails(fallbackTripData)
+                        }
+                    } else {
+                        // Fallback to converted data if API call fails
+                        val fallbackTripData = convertRequestToTripData(request)
+                        navigateToTripDetails(fallbackTripData)
+                        
+                        android.util.Log.e("TaxiApp", "Failed to fetch trip details: ${response.code()}")
+                    }
+                } catch (e: Exception) {
+                    // Fallback to converted data if there's an exception
+                    val fallbackTripData = convertRequestToTripData(request)
+                    navigateToTripDetails(fallbackTripData)
+                    
+                    android.util.Log.e("TaxiApp", "Error fetching trip details: ${e.message}")
+                } finally {
+                    _isLoading.value = false
+                }
+            }
+        }
+    }
+    
+    // Helper function to convert DriverRequestData to DriverTripData (fallback)
+    private fun convertRequestToTripData(request: DriverRequestData): DriverTripData {
+        return request.trip?.let { tripData ->
+            DriverTripData(
+                id = tripData.id,
+                from_addr = tripData.from_addr,
+                to_addr = tripData.to_addr,
+                from_lat = 0.0, // Will be handled by TripDetailsScreen
+                from_lng = 0.0,
+                to_lat = 0.0,
+                to_lng = 0.0,
+                departure_at = tripData.departure_at,
+                price_amd = tripData.price_amd,
+                seats_total = tripData.seats_requested,
+                seats_taken = 0,
+                status = request.status,
+                pay_methods = listOf(request.payment),
+                pending_requests_count = 0,
+                amenities = null,
+                amenity_ids = null
+            )
+        } ?: DriverTripData(
+            id = 0,
+            from_addr = "Unknown",
+            to_addr = "Unknown", 
+            from_lat = 0.0,
+            from_lng = 0.0,
+            to_lat = 0.0,
+            to_lng = 0.0,
+            departure_at = "",
+            price_amd = 0,
+            seats_total = 0,
+            seats_taken = 0,
+            status = "unknown",
+            pay_methods = emptyList(),
+            pending_requests_count = 0,
+            amenities = null,
+            amenity_ids = null
+        )
     }
 
     // Company functions
@@ -1745,16 +1843,16 @@ class TaxiViewModel(private val context: Context) : ViewModel() {
     }
 
     // Fetch driver published trips from API
-    fun fetchDriverTrips() {
+    fun fetchDriverTrips(status: String = "published") {
         viewModelScope.launch {
             try {
                 val token = _authToken.value
                 if (token != null) {
-                    android.util.Log.d("TaxiApp", "Fetching driver trips from API")
+                    android.util.Log.d("TaxiApp", "Fetching driver trips from API with status: $status")
                     
                     val response = NetworkModule.apiService.getDriverTrips(
                         token = "Bearer $token",
-                        status = "published",
+                        status = status,
                         perPage = 20
                     )
                     
@@ -1771,6 +1869,45 @@ class TaxiViewModel(private val context: Context) : ViewModel() {
                         android.util.Log.e("TaxiApp", "Failed to fetch driver trips: ${response.code()}")
                         _errorMessage.value = "Չհաջողվեց բեռնել ուղևորությունները"
                     }
+                } else {
+                    android.util.Log.w("TaxiApp", "No auth token available for fetching driver trips")
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("TaxiApp", "Error fetching driver trips", e)
+                _errorMessage.value = "Ինտերնետ կապի խնդիր: Խնդրում ենք ստուգել ձեր կապը"
+            }
+        }
+    }
+    
+    // Fetch all driver trips (all statuses) from API
+    fun fetchAllDriverTrips() {
+        viewModelScope.launch {
+            try {
+                val token = _authToken.value
+                if (token != null) {
+                    android.util.Log.d("TaxiApp", "Fetching all driver trips from API")
+                    
+                    // Try to get trips without status filter by making multiple calls
+                    val statuses = listOf("published", "draft", "archived")
+                    val allTrips = mutableListOf<com.example.taxi_app.data.api.DriverTripData>()
+                    
+                    for (status in statuses) {
+                        val response = NetworkModule.apiService.getDriverTrips(
+                            token = "Bearer $token",
+                            status = status,
+                            perPage = 20
+                        )
+                        
+                        if (response.isSuccessful) {
+                            val tripsResponse = response.body()
+                            tripsResponse?.data?.let { trips ->
+                                allTrips.addAll(trips)
+                            }
+                        }
+                    }
+                    
+                    _driverPublishedTrips.value = allTrips
+                    android.util.Log.d("TaxiApp", "Successfully loaded ${allTrips.size} total driver trips")
                 } else {
                     android.util.Log.w("TaxiApp", "No auth token available for fetching driver trips")
                 }

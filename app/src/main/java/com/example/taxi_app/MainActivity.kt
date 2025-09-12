@@ -61,6 +61,7 @@ fun TaxiApp() {
     val driverStats by viewModel.driverStats.collectAsState()
     val driverTrips by viewModel.driverTrips.collectAsState()
     val driverPublishedTrips by viewModel.driverPublishedTrips.collectAsState()
+    val selectedDriverTrip by viewModel.selectedDriverTrip.collectAsState()
     val driverVehicle by viewModel.driverVehicle.collectAsState()
     val amenities by viewModel.amenities.collectAsState()
     val driverRequestNotificationCount by viewModel.driverRequestNotificationCount.collectAsState()
@@ -292,11 +293,11 @@ fun TaxiApp() {
                             driver = driver,
                             stats = driverStats,
                             availableTrips = driverTrips.filter { it.status == "published" },
-                            publishedTrips = driverPublishedTrips,
                             driverVehicle = driverVehicle,
                             onAcceptTrip = viewModel::acceptDriverTrip,
                             onViewEarnings = { viewModel.navigateToScreen(Screen.DriverEarnings) },
                             onViewRequests = { viewModel.navigateToScreen(Screen.DriverRequests) },
+                            onViewTrips = { viewModel.navigateToScreen(Screen.DriverTrips) },
                             onAddTrip = { viewModel.navigateToScreen(Screen.AddTrip) },
                             onViewProfile = { viewModel.navigateToScreen(Screen.DriverProfile) },
                             onLogout = viewModel::logout,
@@ -341,6 +342,13 @@ fun TaxiApp() {
                         onNavigate = { screen -> viewModel.navigateToScreen(screen) }
                     )
                 }
+                Screen.DriverTrips -> {
+                    DriverTripsScreen(
+                        viewModel = viewModel,
+                        onBack = { viewModel.navigateToScreen(Screen.DriverDashboard) },
+                        onTripClick = { trip -> viewModel.navigateToTripDetails(trip) }
+                    )
+                }
                 Screen.AddTrip -> {
                     AddTripScreen(
                         amenities = amenities,
@@ -355,6 +363,14 @@ fun TaxiApp() {
                         onClearSuccess = viewModel::clearSuccessMessage,
                         onClearError = viewModel::clearErrorMessage
                     )
+                }
+                Screen.TripDetails -> {
+                    selectedDriverTrip?.let { trip ->
+                        TripDetailsScreen(
+                            trip = trip,
+                            onBackClick = { viewModel.navigateToScreen(Screen.DriverTrips) }
+                        )
+                    }
                 }
                 else -> {}
             }
