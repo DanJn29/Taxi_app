@@ -24,6 +24,25 @@ interface ApiService {
     @GET("trips")
     suspend fun getTrips(@Header("Authorization") token: String): Response<TripsResponse>
     
+    @GET("clientv2/trips")
+    suspend fun getTripsV2(
+        @Query("from") from: String? = null,
+        @Query("to") to: String? = null,
+        @Query("date") date: String? = null, // YYYY-MM-DD
+        @Query("seats") seats: Int? = null,
+        @Query("max_price") maxPrice: Int? = null,
+        @Query("pay") payMethod: String? = null, // "cash" or "card"
+        @Query("amenities") amenities: String? = null, // CSV of amenity IDs
+        @Query("sort") sort: String? = null, // "departure_at", "price", "-price"
+        @Query("page[size]") pageSize: Int = 12,
+        @Query("page") page: Int = 1
+    ): Response<TripsResponseV2>
+    
+    @GET("clientv2/trips/{id}")
+    suspend fun getTripDetail(
+        @Path("id") tripId: Int
+    ): Response<TripDetailResponse>
+    
     @POST("trips/{trip}/requests")
     suspend fun bookTrip(
         @Header("Authorization") token: String,

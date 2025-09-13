@@ -8,8 +8,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.taxi_app.data.*
+import com.example.taxi_app.data.api.TripDataV2
+import com.example.taxi_app.data.api.VehicleInfoV2
+import com.example.taxi_app.data.api.DriverInfoV2
 import com.example.taxi_app.ui.screens.*
 import com.example.taxi_app.ui.screens.client.*
+import com.example.taxi_app.ui.screens.client.ClientBookingScreen
 import com.example.taxi_app.ui.screens.driver.*
 import com.example.taxi_app.ui.screens.company.*
 import com.example.taxi_app.ui.theme.Taxi_appTheme
@@ -53,8 +57,7 @@ fun TaxiApp() {
     val successMessage by viewModel.successMessage.collectAsState()
     
     // Client data
-    val availableTrips by viewModel.availableTrips.collectAsState()
-    val selectedTrip by viewModel.selectedTrip.collectAsState()
+    val tripsV2 by viewModel.tripsV2.collectAsState()
     val clientBookings by viewModel.clientBookings.collectAsState()
     
     // Driver data
@@ -183,11 +186,10 @@ fun TaxiApp() {
                     currentUser?.let { user ->
                         ClientHomeScreen(
                             user = user,
-                            availableTrips = availableTrips,
-                            onTripSelected = { trip ->
-                                // Store selected trip and navigate to booking
-                                viewModel.selectTrip(trip)
-                                viewModel.navigateToScreen(Screen.ClientBooking)
+                            availableTrips = tripsV2,
+                            onTripSelected = { trip: TripDataV2 ->
+                                // Navigate to booking with detailed trip information
+                                viewModel.navigateToBookingWithDetails(trip.id.toString())
                             },
                             onProfileClicked = { viewModel.navigateToScreen(Screen.ClientProfile) },
                             onHistoryClicked = { viewModel.navigateToScreen(Screen.ClientHistory) },
@@ -199,13 +201,48 @@ fun TaxiApp() {
                 }
                 Screen.ClientBooking -> {
                     currentUser?.let { user ->
-                        selectedTrip?.let { trip ->
+                        val selectedTripDetails by viewModel.selectedTripDetails.collectAsState()
+                        selectedTripDetails?.let { tripDetail ->
+                            // Convert TripDetailData to Trip for compatibility
+                            val trip = Trip(
+                                id = tripDetail.id.toString(),
+                                vehicleId = "vehicle_${tripDetail.id}",
+                                assignedDriverId = "driver_${tripDetail.id}",
+                                fromAddr = tripDetail.from,
+                                toAddr = tripDetail.to,
+                                fromLat = tripDetail.from_lat,
+                                fromLng = tripDetail.from_lng,
+                                toLat = tripDetail.to_lat,
+                                toLng = tripDetail.to_lng,
+                                departureAt = tripDetail.departure_at,
+                                priceAmd = tripDetail.price_amd,
+                                seatsTotal = tripDetail.seats_total,
+                                seatsTaken = tripDetail.seats_taken,
+                                pendingRequestsCount = tripDetail.pending_requests_count,
+                                vehicle = Vehicle(
+                                    id = "vehicle_${tripDetail.id}",
+                                    brand = tripDetail.vehicle.brand,
+                                    model = tripDetail.vehicle.model,
+                                    plate = tripDetail.vehicle.plate,
+                                    color = tripDetail.vehicle.color,
+                                    seats = tripDetail.seats_total
+                                ),
+                                driver = User(
+                                    id = "driver_${tripDetail.id}",
+                                    name = tripDetail.actor.name,
+                                    email = "",
+                                    role = "driver",
+                                    phone = ""
+                                ),
+                                payMethods = tripDetail.pay_methods
+                            )
+                            
                             ClientBookingScreen(
                                 trip = trip,
                                 user = user,
                                 viewModel = viewModel,
-                                onBookTrip = { seats, payment, notes ->
-                                    viewModel.bookTrip(trip.id, seats, payment, notes)
+                                onBookTrip = { seats: Int, payment: String, notes: String ->
+                                    viewModel.bookTrip(tripDetail.id.toString(), seats, payment, notes)
                                     viewModel.clearSelectedTrip()
                                     viewModel.navigateToScreen(Screen.ClientHome)
                                 },
@@ -215,7 +252,7 @@ fun TaxiApp() {
                                 }
                             )
                         } ?: run {
-                            // If no trip is selected, go back to home
+                            // If no trip details are loaded, show loading or go back to home
                             LaunchedEffect(Unit) {
                                 viewModel.navigateToScreen(Screen.ClientHome)
                             }

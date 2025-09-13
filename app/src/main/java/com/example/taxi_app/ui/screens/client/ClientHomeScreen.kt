@@ -17,16 +17,19 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.taxi_app.data.*
+import com.example.taxi_app.data.api.TripDataV2
 import com.example.taxi_app.ui.components.*
 import com.example.taxi_app.ui.theme.*
 import com.example.taxi_app.viewmodel.TaxiViewModel
+import java.text.SimpleDateFormat
+import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ClientHomeScreen(
     user: User,
-    availableTrips: List<Trip>,
-    onTripSelected: (Trip) -> Unit,
+    availableTrips: List<TripDataV2>,
+    onTripSelected: (TripDataV2) -> Unit,
     onProfileClicked: () -> Unit,
     onHistoryClicked: () -> Unit,
     onRequestsClicked: () -> Unit,
@@ -64,6 +67,11 @@ fun ClientHomeScreen(
             notificationMessage = latestNotificationMessage
             showNotificationSnackbar = true
         }
+    }
+    
+    // Load trips when screen first appears
+    LaunchedEffect(Unit) {
+        viewModel?.loadTripsV2()
     }
     
     // Count active filters
@@ -279,7 +287,8 @@ fun ClientHomeScreen(
                 items(availableTrips) { trip ->
                     TripCard(
                         trip = trip,
-                        onTripSelected = { onTripSelected(trip) }
+                        onTripSelected = { onTripSelected(trip) },
+                        viewModel = viewModel
                     )
                 }
             }
@@ -309,8 +318,9 @@ fun ClientHomeScreen(
 
 @Composable
 private fun TripCard(
-    trip: Trip,
-    onTripSelected: () -> Unit
+    trip: TripDataV2,
+    onTripSelected: () -> Unit,
+    viewModel: TaxiViewModel? = null
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -341,7 +351,7 @@ private fun TripCard(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = trip.fromAddr,
+                            text = trip.from_addr,
                             fontSize = 14.sp,
                             color = TaxiBlack,
                             fontWeight = FontWeight.Medium
@@ -361,7 +371,7 @@ private fun TripCard(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = trip.toAddr,
+                            text = trip.to_addr,
                             fontSize = 14.sp,
                             color = TaxiBlack,
                             fontWeight = FontWeight.Medium
@@ -373,16 +383,24 @@ private fun TripCard(
                     horizontalAlignment = Alignment.End
                 ) {
                     Text(
-                        text = "${trip.priceAmd} AMD",
+                        text = "${trip.price_amd} AMD",
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
                         color = TaxiBlack
                     )
                     Text(
-                        text = "Տեղեր՝ ${trip.seatsTaken}/${trip.seatsTotal}",
+                        text = "Տեղեր՝ ${trip.seats_taken}/${trip.seats_total}",
                         fontSize = 12.sp,
                         color = TaxiGray
                     )
+                    if (trip.pending_requests_count > 0) {
+                        Text(
+                            text = "Հայտեր՝ ${trip.pending_requests_count}",
+                            fontSize = 11.sp,
+                            color = TaxiYellow,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
                 }
             }
             
@@ -417,70 +435,99 @@ private fun TripCard(
                     modifier = Modifier.weight(1f)
                 ) {
                     Text(
-                        text = "${trip.vehicle?.brand} ${trip.vehicle?.model}",
+                        text = "${trip.vehicle.brand} ${trip.vehicle.model}",
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Medium,
                         color = TaxiBlack
                     )
                     Text(
-                        text = "Վարորդ՝ ${trip.driver?.name ?: "Անհայտ"}",
+                        text = "Վարորդ՝ ${trip.driver.name}",
                         fontSize = 12.sp,
                         color = TaxiGray
                     )
-                    // Add plate number and color
+                    // Vehicle details
                     Row(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        trip.vehicle?.plate?.let { plate ->
-                            Text(
-                                text = "Համար՝ $plate",
-                                fontSize = 12.sp,
-                                color = TaxiGray
-                            )
-                            
-                            trip.vehicle.color?.let { color ->
-                                Text(
-                                    text = " • $color",
-                                    fontSize = 12.sp,
-                                    color = TaxiGray
-                                )
-                            }
-                        }
-                        
-                        // Show color only if no plate
-                        if (trip.vehicle?.plate == null) {
-                            trip.vehicle?.color?.let { color ->
-                                Text(
-                                    text = "Գույն՝ $color",
-                                    fontSize = 12.sp,
-                                    color = TaxiGray
-                                )
-                            }
-                        }
+                        Text(
+                            text = "Համար՝ ${trip.vehicle.plate}",
+                            fontSize = 12.sp,
+                            color = TaxiGray
+                        )
+                        Text(
+                            text = " • ${hexToArmenianColorName(trip.vehicle.color)}",
+                            fontSize = 12.sp,
+                            color = TaxiGray
+                        )
                     }
                 }
                 
                 TaxiButton(
                     text = "Ամրագրել",
-                    onClick = onTripSelected,
+                    onClick = { 
+                        // Load trip details and then navigate
+                        viewModel?.loadTripDetail(trip.id)
+                        onTripSelected()
+                    },
                     modifier = Modifier.width(100.dp)
                 )
             }
             
-            if (trip.departureAt != null) {
+            // Departure time
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Schedule,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                    tint = TaxiGray
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                    text = "Մեկնում՝ ${formatDepartureTime(trip.departure_at)}",
+                    fontSize = 12.sp,
+                    color = TaxiGray
+                )
+            }
+            
+            // Amenities
+            if (trip.amenities.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(8.dp))
                 Row(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Schedule,
+                        imageVector = Icons.Default.Star,
                         contentDescription = null,
                         modifier = Modifier.size(16.dp),
                         tint = TaxiGray
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
-                        text = "Մեկնում՝ ${trip.departureAt}",
+                        text = "Հարմարություններ՝ ${trip.amenities.joinToString(", ") { amenity -> amenity.name }}",
+                        fontSize = 12.sp,
+                        color = TaxiGray
+                    )
+                }
+            }
+            
+            // Payment methods
+            if (trip.pay_methods.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Payment,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = TaxiGray
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "Վճարման եղանակներ՝ ${trip.pay_methods.joinToString(", ")}",
                         fontSize = 12.sp,
                         color = TaxiGray
                     )
@@ -826,4 +873,119 @@ private fun FilterDialog(
             }
         }
     )
+}
+
+// Utility function to format departure time in a human-readable format
+private fun formatDepartureTime(departureAt: String): String {
+    return try {
+        // Try parsing with timezone offset format first (e.g., "2025-09-10T06:19:00+00:00")
+        val inputFormatWithOffset = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", Locale.getDefault())
+        var date = try {
+            inputFormatWithOffset.parse(departureAt)
+        } catch (e: Exception) {
+            // Fallback to UTC format (e.g., "2024-12-15T14:30:00Z")
+            val inputFormatUTC = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.getDefault())
+            inputFormatUTC.timeZone = TimeZone.getTimeZone("UTC")
+            inputFormatUTC.parse(departureAt)
+        }
+        
+        if (date != null) {
+            val departureCalendar = Calendar.getInstance()
+            departureCalendar.time = date
+            
+            val dayFormat = SimpleDateFormat("EEEE", Locale("hy", "AM")) // Armenian day names
+            val timeFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
+            val dateFormat = SimpleDateFormat("dd MMM", Locale("hy", "AM"))
+            
+            val dayName = dayFormat.format(date)
+            val time = timeFormat.format(date)
+            val dateStr = dateFormat.format(date)
+            
+            // Check if it's today, tomorrow, or another day
+            val today = Calendar.getInstance()
+            val tomorrow = Calendar.getInstance()
+            tomorrow.add(Calendar.DAY_OF_YEAR, 1)
+            
+            when {
+                isSameDay(departureCalendar, today) -> "Այսօր $time-ին"
+                isSameDay(departureCalendar, tomorrow) -> "Վաղը $time-ին"
+                departureCalendar.get(Calendar.YEAR) == today.get(Calendar.YEAR) -> "$dayName, $dateStr $time-ին"
+                else -> "$dateStr $time-ին"
+            }
+        } else {
+            departureAt
+        }
+    } catch (e: Exception) {
+        // Fallback to original string if parsing fails
+        departureAt
+    }
+}
+
+// Helper function to check if two calendar dates are the same day
+private fun isSameDay(cal1: Calendar, cal2: Calendar): Boolean {
+    return cal1.get(Calendar.YEAR) == cal2.get(Calendar.YEAR) &&
+           cal1.get(Calendar.DAY_OF_YEAR) == cal2.get(Calendar.DAY_OF_YEAR)
+}
+
+// Utility function to convert hex color codes to Armenian color names
+private fun hexToArmenianColorName(hexColor: String): String {
+    val cleanHex = hexColor.replace("#", "").lowercase()
+    
+    return when (cleanHex) {
+        "ffffff", "fff" -> "սպիտակ"
+        "000000", "000" -> "սև"
+        "ff0000", "f00" -> "կարմիր"
+        "00ff00", "0f0" -> "կանաչ"
+        "10b981" -> "կանաչ"  // Emerald green
+        "0000ff", "00f" -> "կապույտ"
+        "ffff00", "ff0" -> "դեղին"
+        "ff00ff", "f0f" -> "մանուշակագույն"
+        "00ffff", "0ff" -> "երկնագույն"
+        "808080", "888" -> "մոխրագույն"
+        "c0c0c0" -> "արծաթագույն"
+        "800000" -> "մուգ կարմիր"
+        "008000" -> "մուգ կանաչ"
+        "000080" -> "մուգ կապույտ"
+        "808000" -> "ձիթապտղագույն"
+        "800080" -> "մանուշակագույն"
+        "008080" -> "կապտականաչ"
+        "ffa500" -> "նարնջագույն"
+        "ffc0cb" -> "վարդագույն"
+        "a52a2a" -> "շագանակագույն"
+        "daa520" -> "ոսկեգույն"
+        "cd853f" -> "աղազգույն"
+        "d2691e" -> "շոկոլադագույն"
+        "8b4513" -> "մուգ շագանակագույն"
+        "696969" -> "մուգ մոխրագույն"
+        "2f4f4f" -> "մուգ մոխրագույն"
+        "191970" -> "կեսգիշերային կապույտ"
+        "dc143c" -> "ծիրանագույն"
+        "b22222" -> "աղյուսագույն"
+        "228b22" -> "անտառային կանաչ"
+        "32cd32" -> "բաց կանաչ"
+        "90ee90" -> "բաց կանաչ"
+        "add8e6" -> "բաց կապույտ"
+        "87ceeb" -> "երկնագույն"
+        "f0f8ff" -> "բաց կապույտ"
+        "f5f5dc" -> "բեժ"
+        else -> {
+            // Try to map common color names
+            when {
+                cleanHex.contains("red") -> "կարմիր"
+                cleanHex.contains("blue") -> "կապույտ"
+                cleanHex.contains("green") -> "կանաչ"
+                cleanHex.contains("white") -> "սպիտակ"
+                cleanHex.contains("black") -> "սև"
+                cleanHex.contains("yellow") -> "դեղին"
+                cleanHex.contains("orange") -> "նարնջագույն"
+                cleanHex.contains("pink") -> "վարդագույն"
+                cleanHex.contains("purple") -> "մանուշակագույն"
+                cleanHex.contains("brown") -> "շագանակագույն"
+                cleanHex.contains("gray") || cleanHex.contains("grey") -> "մոխրագույն"
+                cleanHex.contains("silver") -> "արծաթագույն"
+                cleanHex.contains("gold") -> "ոսկեգույն"
+                else -> hexColor // Return original if no match found
+            }
+        }
+    }
 }
