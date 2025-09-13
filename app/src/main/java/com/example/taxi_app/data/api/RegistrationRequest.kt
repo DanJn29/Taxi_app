@@ -381,12 +381,49 @@ data class TripMetaV2(
     val last_page: Int
 )
 
-// Detailed Trip API Response Models
-data class TripDetailResponse(
-    val data: TripDetailData
+// Completed Trips API Data Models
+data class CompletedTripsResponse(
+    val data: List<CompletedTripData>,
+    val meta: CompletedTripMeta
 )
 
-data class TripDetailData(
+data class CompletedTripData(
+    val id: Int,
+    val from_addr: String,
+    val to_addr: String,
+    val departure_at: String,
+    val price_amd: Int,
+    val seats_requested: Int,
+    val rating: Int?,
+    val completed_at: String,
+    val driver: DriverInfoV2,
+    val vehicle: VehicleInfoV2
+)
+
+data class CompletedTripMeta(
+    val page: Int,
+    val per_page: Int,
+    val total: Int,
+    val last_page: Int
+)
+
+// Rating Request Data Model
+data class RatingRequest(
+    val rating: Int // 1-5 stars
+)
+
+// Simple Response for API operations
+data class SimpleResponse(
+    val message: String,
+    val success: Boolean = true
+)
+
+// Trip Details Response (GET /api/clientv2/trips/{trip})
+data class TripDetailsResponse(
+    val data: TripDetailsData
+)
+
+data class TripDetailsData(
     val id: Int,
     val from: String,
     val to: String,
@@ -404,46 +441,59 @@ data class TripDetailData(
     val is_company: Boolean,
     val actor: TripActor,
     val vehicle: TripVehicle,
-    val amenitiesByCat: List<Any>, // Can be expanded based on actual structure
+    val amenitiesByCat: List<AmenityCategory>,
     val reviews: TripReviews
 )
 
 data class TripStop(
-    val position: Int,
+    val position: Int?,
     val name: String?,
-    val addr: String,
-    val lat: Double,
-    val lng: Double
+    val addr: String?,
+    val lat: Double?,
+    val lng: Double?
 )
 
 data class TripActor(
-    val type: String,
-    val name: String,
-    val rating: Double,
-    val trips: Int
+    val type: String?,
+    val name: String?,
+    val rating: Float?,
+    val trips: Int?
 )
 
 data class TripVehicle(
-    val brand: String,
-    val model: String,
-    val color: String,
-    val plate: String
+    val brand: String?,
+    val model: String?,
+    val color: String?,
+    val plate: String?
+)
+
+data class AmenityCategory(
+    val id: Int,
+    val name: String,
+    val items: List<AmenityItem>
+)
+
+data class AmenityItem(
+    val id: Int,
+    val name: String,
+    val slug: String,
+    val icon: String
 )
 
 data class TripReviews(
-    val summary: ReviewsSummary,
+    val summary: ReviewSummary,
     val items: List<ReviewItem>
 )
 
-data class ReviewsSummary(
-    val rating: Double,
+data class ReviewSummary(
+    val rating: Float,
     val trips: Int,
     val count: Int
 )
 
 data class ReviewItem(
-    val id: Int,
-    val rating: Int,
-    val text: String,
-    val date: String
+    val id: Int?,
+    val rating: Int?,
+    val text: String?,
+    val date: String?
 )

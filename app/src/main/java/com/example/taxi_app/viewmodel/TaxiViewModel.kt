@@ -14,9 +14,9 @@ import com.example.taxi_app.data.api.CompanyRegistrationRequest
 import com.example.taxi_app.data.api.TripsResponse
 import com.example.taxi_app.data.api.TripData
 import com.example.taxi_app.data.api.TripDataV2
-import com.example.taxi_app.data.api.TripDetailData
-import com.example.taxi_app.data.api.VehicleInfoV2
-import com.example.taxi_app.data.api.DriverInfoV2
+import com.example.taxi_app.data.api.CompletedTripData
+import com.example.taxi_app.data.api.TripDetailsData
+import com.example.taxi_app.data.api.RatingRequest
 import com.example.taxi_app.data.api.DriverTripsResponse
 import com.example.taxi_app.data.api.DriverTripData
 import com.example.taxi_app.data.api.DriverRequestData
@@ -88,9 +88,13 @@ class TaxiViewModel(private val context: Context) : ViewModel() {
     private val _tripsV2 = MutableStateFlow<List<TripDataV2>>(emptyList())
     val tripsV2: StateFlow<List<TripDataV2>> = _tripsV2.asStateFlow()
 
-    // Trip Detail Data
-    private val _tripDetail = MutableStateFlow<TripDetailData?>(null)
-    val tripDetail: StateFlow<TripDetailData?> = _tripDetail.asStateFlow()
+    // Completed Trips Data
+    private val _completedTrips = MutableStateFlow<List<CompletedTripData>>(emptyList())
+    val completedTrips: StateFlow<List<CompletedTripData>> = _completedTrips.asStateFlow()
+
+    // Trip Details Data
+    private val _tripDetails = MutableStateFlow<TripDetailsData?>(null)
+    val tripDetails: StateFlow<TripDetailsData?> = _tripDetails.asStateFlow()
 
     private val _requests = MutableStateFlow<List<Request>>(emptyList())
     val requests: StateFlow<List<Request>> = _requests.asStateFlow()
@@ -152,9 +156,8 @@ class TaxiViewModel(private val context: Context) : ViewModel() {
     private val _selectedTrip = MutableStateFlow<Trip?>(null)
     val selectedTrip: StateFlow<Trip?> = _selectedTrip.asStateFlow()
 
-    // Detailed trip data for comprehensive booking information
-    private val _selectedTripDetails = MutableStateFlow<TripDetailData?>(null)
-    val selectedTripDetails: StateFlow<TripDetailData?> = _selectedTripDetails.asStateFlow()
+    private val _selectedTripId = MutableStateFlow<Int?>(null)
+    val selectedTripId: StateFlow<Int?> = _selectedTripId.asStateFlow()
 
     private val _clientBookings = MutableStateFlow<List<Booking>>(emptyList())
     val clientBookings: StateFlow<List<Booking>> = _clientBookings.asStateFlow()
@@ -620,30 +623,66 @@ class TaxiViewModel(private val context: Context) : ViewModel() {
         loadTripsV2()
     }
 
-    // Function to load detailed trip information
-    fun loadTripDetail(tripId: Int) {
+    // Function to load completed trips
+    fun loadCompletedTrips() {
         viewModelScope.launch {
             try {
-                _isLoading.value = true
-                _errorMessage.value = null
-                
-                val response = NetworkModule.apiService.getTripDetail(tripId)
-                
+                val response = NetworkModule.apiService.getCompletedTrips()
                 if (response.isSuccessful) {
-                    response.body()?.let { tripDetailResponse ->
-                        _tripDetail.value = tripDetailResponse.data
-                        android.util.Log.d("TaxiApp", "Trip detail loaded successfully for trip $tripId")
+                    val apiResponse = response.body()
+                    if (apiResponse != null) {
+                        _completedTrips.value = apiResponse.data
+                        android.util.Log.d("TaxiApp", "Loaded ${apiResponse.data.size} completed trips")
                     }
                 } else {
-                    val errorBody = response.errorBody()?.string()
-                    android.util.Log.e("TaxiApp", "Failed to load trip detail: ${response.code()} - $errorBody")
-                    _errorMessage.value = "Չհաջողվեց բեռնել երթուղու մանրամասները"
+                    android.util.Log.e("TaxiApp", "Failed to load completed trips: ${response.message()}")
+                    _errorMessage.value = "Failed to load completed trips"
                 }
             } catch (e: Exception) {
-                android.util.Log.e("TaxiApp", "Error loading trip detail", e)
-                _errorMessage.value = "Կապի խնդիր: ${e.message}"
-            } finally {
-                _isLoading.value = false
+                android.util.Log.e("TaxiApp", "Error loading completed trips: ${e.message}")
+                _errorMessage.value = "Error loading completed trips: ${e.message}"
+            }
+        }
+    }
+
+    // Function to rate a trip
+    fun rateTrip(tripId: Int, rating: Int) {
+        viewModelScope.launch {
+            try {
+                val response = NetworkModule.apiService.rateTrip(tripId, RatingRequest(rating))
+                if (response.isSuccessful) {
+                    android.util.Log.d("TaxiApp", "Trip rated successfully")
+                    // Reload completed trips to get updated rating
+                    loadCompletedTrips()
+                } else {
+                    android.util.Log.e("TaxiApp", "Failed to rate trip: ${response.message()}")
+                    _errorMessage.value = "Failed to rate trip"
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("TaxiApp", "Error rating trip: ${e.message}")
+                _errorMessage.value = "Error rating trip: ${e.message}"
+            }
+        }
+    }
+
+    // Function to load trip details
+    fun loadTripDetails(tripId: Int) {
+        viewModelScope.launch {
+            try {
+                val response = NetworkModule.apiService.getTripDetails(tripId)
+                if (response.isSuccessful) {
+                    val apiResponse = response.body()
+                    if (apiResponse != null) {
+                        _tripDetails.value = apiResponse.data
+                        android.util.Log.d("TaxiApp", "Loaded trip details for trip ID: $tripId")
+                    }
+                } else {
+                    android.util.Log.e("TaxiApp", "Failed to load trip details: ${response.message()}")
+                    _errorMessage.value = "Failed to load trip details"
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("TaxiApp", "Error loading trip details: ${e.message}")
+                _errorMessage.value = "Error loading trip details: ${e.message}"
             }
         }
     }
@@ -818,76 +857,13 @@ class TaxiViewModel(private val context: Context) : ViewModel() {
         _selectedTrip.value = convertedTrip
     }
 
+    fun selectTripIdForDetails(tripId: Int) {
+        _selectedTripId.value = tripId
+    }
+
     fun clearSelectedTrip() {
         _selectedTrip.value = null
-        _selectedTripDetails.value = null
-    }
-
-    // Function to fetch detailed trip data for comprehensive booking
-    fun fetchTripDetails(tripId: String) {
-        viewModelScope.launch {
-            try {
-                _isLoading.value = true
-                _errorMessage.value = null
-                
-                val response = NetworkModule.apiService.getTripDetail(tripId.toInt())
-                
-                if (response.isSuccessful) {
-                    val tripDetailResponse = response.body()
-                    tripDetailResponse?.data?.let { tripDetail ->
-                        _selectedTripDetails.value = tripDetail
-                        android.util.Log.d("TaxiApp", "Trip details loaded successfully for ID: $tripId")
-                    } ?: run {
-                        _errorMessage.value = "Չհաջողվեց բեռնել ճանապարհորդության մանրամասները"
-                        android.util.Log.e("TaxiApp", "No trip detail data in response")
-                    }
-                } else {
-                    _errorMessage.value = "Չհաջողվեց բեռնել ճանապարհորդության մանրամասները"
-                    android.util.Log.e("TaxiApp", "Failed to fetch trip details: ${response.code()}")
-                }
-            } catch (e: Exception) {
-                _errorMessage.value = "Ինտերնետ կապի խնդիր"
-                android.util.Log.e("TaxiApp", "Exception fetching trip details", e)
-            } finally {
-                _isLoading.value = false
-            }
-        }
-    }
-
-    // Convert TripDetailData to TripDataV2 for the booking screen
-    private fun convertTripDetailToTripDataV2(tripDetail: TripDetailData): TripDataV2 {
-        return TripDataV2(
-            id = tripDetail.id,
-            from_addr = tripDetail.from,
-            to_addr = tripDetail.to,
-            from_lat = tripDetail.from_lat,
-            from_lng = tripDetail.from_lng,
-            to_lat = tripDetail.to_lat,
-            to_lng = tripDetail.to_lng,
-            departure_at = tripDetail.departure_at,
-            price_amd = tripDetail.price_amd,
-            seats_total = tripDetail.seats_total,
-            seats_taken = tripDetail.seats_taken,
-            pending_requests_count = tripDetail.pending_requests_count,
-            vehicle = VehicleInfoV2(
-                brand = tripDetail.vehicle.brand,
-                model = tripDetail.vehicle.model,
-                plate = tripDetail.vehicle.plate,
-                color = tripDetail.vehicle.color,
-                seats = tripDetail.seats_total // Use trip's total seats as vehicle doesn't have this field
-            ),
-            driver = DriverInfoV2(
-                name = tripDetail.actor.name
-            ),
-            pay_methods = tripDetail.pay_methods,
-            amenities = emptyList() // Will be populated from amenitiesByCat if needed
-        )
-    }
-
-    // Navigate to booking screen with detailed trip information
-    fun navigateToBookingWithDetails(tripId: String) {
-        fetchTripDetails(tripId)
-        navigateToScreen(Screen.ClientBooking)
+        _selectedTripId.value = null
     }
     
     // Search and Filter Functions

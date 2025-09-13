@@ -287,8 +287,7 @@ fun ClientHomeScreen(
                 items(availableTrips) { trip ->
                     TripCard(
                         trip = trip,
-                        onTripSelected = { onTripSelected(trip) },
-                        viewModel = viewModel
+                        onTripSelected = { onTripSelected(trip) }
                     )
                 }
             }
@@ -319,8 +318,7 @@ fun ClientHomeScreen(
 @Composable
 private fun TripCard(
     trip: TripDataV2,
-    onTripSelected: () -> Unit,
-    viewModel: TaxiViewModel? = null
+    onTripSelected: () -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -464,11 +462,7 @@ private fun TripCard(
                 
                 TaxiButton(
                     text = "Ամրագրել",
-                    onClick = { 
-                        // Load trip details and then navigate
-                        viewModel?.loadTripDetail(trip.id)
-                        onTripSelected()
-                    },
+                    onClick = onTripSelected,
                     modifier = Modifier.width(100.dp)
                 )
             }

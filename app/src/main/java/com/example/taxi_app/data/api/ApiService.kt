@@ -38,10 +38,22 @@ interface ApiService {
         @Query("page") page: Int = 1
     ): Response<TripsResponseV2>
     
-    @GET("clientv2/trips/{id}")
-    suspend fun getTripDetail(
-        @Path("id") tripId: Int
-    ): Response<TripDetailResponse>
+    @GET("clientv2/trips/completed")
+    suspend fun getCompletedTrips(
+        @Query("page") page: Int = 1,
+        @Query("page[size]") pageSize: Int = 12
+    ): Response<CompletedTripsResponse>
+    
+    @GET("clientv2/trips/{trip}")
+    suspend fun getTripDetails(
+        @Path("trip") tripId: Int
+    ): Response<TripDetailsResponse>
+    
+    @POST("trips/{tripId}/rate")
+    suspend fun rateTrip(
+        @Path("tripId") tripId: Int,
+        @Body request: RatingRequest
+    ): Response<SimpleResponse>
     
     @POST("trips/{trip}/requests")
     suspend fun bookTrip(

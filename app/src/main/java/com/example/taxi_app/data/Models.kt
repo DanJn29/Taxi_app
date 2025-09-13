@@ -148,6 +148,7 @@ sealed class Screen(val route: String) {
     object ClientRegister : Screen("client_register")
     object ClientHome : Screen("client_home")
     object ClientBooking : Screen("client_booking")
+    object ClientTripDetails : Screen("client_trip_details")
     object ClientTracking : Screen("client_tracking")
     object ClientHistory : Screen("client_history")
     object ClientRequests : Screen("client_requests")
